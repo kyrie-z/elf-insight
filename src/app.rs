@@ -10,13 +10,14 @@ use crate::ui::layout_map::LayoutMapState;
 use crate::ui::search::SearchState;
 
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, MouseEventKind},
+    event::{self, Event, KeyCode, KeyEventKind},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::prelude::*;
 use std::io;
 
+#[derive(Clone)]
 pub enum DetailView {
     Overview,
     LayoutMap,
@@ -43,6 +44,15 @@ pub struct App {
     pub pending_g: bool,
     pub disasm_cache: Option<DisasmResult>,
     pub current_disasm_section: Option<usize>,
+    pub prev_view: Option<DetailView>,
+    pub prev_node: Option<TreeNodeType>,
+    pub disasm_subfocus: DisasmSubFocus,
+}
+
+#[derive(PartialEq, Eq)]
+pub enum DisasmSubFocus {
+    FuncList,
+    Instructions,
 }
 
 #[derive(PartialEq, Eq)]
@@ -72,6 +82,9 @@ impl App {
             pending_g: false,
             disasm_cache: None,
             current_disasm_section: None,
+            prev_view: None,
+            prev_node: None,
+            disasm_subfocus: DisasmSubFocus::FuncList,
         }
     }
 }
@@ -128,9 +141,7 @@ fn build_tree(data: &ElfData) -> Vec<TreeNode> {
             } else {
                 format!("[{}] {}", s.index, s.name)
             },
-            node_type: TreeNodeType::SectionBody {
-                index: s.index,
-            },
+            node_type: TreeNodeType::SectionBody { index: s.index },
             depth: 1,
             children: vec![],
             expanded: true,
@@ -199,7 +210,7 @@ fn build_tree(data: &ElfData) -> Vec<TreeNode> {
 pub fn run_app(data: ElfData) -> Result<(), Box<dyn std::error::Error>> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    execute!(stdout, EnterAlternateScreen)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
@@ -207,11 +218,7 @@ pub fn run_app(data: ElfData) -> Result<(), Box<dyn std::error::Error>> {
     let res = run_event_loop(&mut terminal, &mut app);
 
     disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;
 
     res
@@ -249,61 +256,40 @@ fn render(f: &mut Frame, app: &mut App) {
 
 fn handle_events(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     if event::poll(std::time::Duration::from_millis(16))? {
-        match event::read()? {
-            Event::Key(key) => {
-                if key.kind == KeyEventKind::Press {
-                    handle_key(app, key.code);
-                }
+        if let Event::Key(key) = event::read()? {
+            if key.kind == KeyEventKind::Press {
+                handle_key(app, key.code);
             }
-            Event::Mouse(mouse) => {
-                handle_mouse(app, mouse);
-            }
-            _ => {}
         }
     }
     Ok(())
 }
 
-fn handle_mouse(app: &mut App, mouse: crossterm::event::MouseEvent) {
-    match mouse.kind {
-        MouseEventKind::ScrollDown => {
-            scroll_detail(app, 3);
-        }
-        MouseEventKind::ScrollUp => {
-            scroll_detail(app, -3);
-        }
-        MouseEventKind::Down(_) => {
-            app.focus = Focus::Detail;
-        }
-        _ => {}
-    }
-}
-
-fn scroll_detail(app: &mut App, delta: isize) {
-    let scroll = match app.current_view {
-        DetailView::Overview => &mut app.overview.scroll,
-        DetailView::LayoutMap => &mut app.layout_map.scroll,
-        DetailView::StructuredInfo => &mut app.info.scroll,
-        DetailView::Hexdump => &mut app.hexdump.scroll,
-        DetailView::Disassembly => &mut app.disasm.scroll,
-        DetailView::Strings => &mut app.strings.scroll,
-    };
-    if delta > 0 {
-        *scroll += delta as usize;
-    } else {
-        *scroll = scroll.saturating_sub((-delta) as usize);
-    }
-}
-
-fn get_scroll(app: &mut App) -> &mut usize {
+fn scroll_mut(app: &mut App) -> &mut usize {
     match app.current_view {
         DetailView::Overview => &mut app.overview.scroll,
+        DetailView::LayoutMap => &mut app.layout_map.scroll,
         DetailView::StructuredInfo => &mut app.info.scroll,
         DetailView::Hexdump => &mut app.hexdump.scroll,
         DetailView::Disassembly => &mut app.disasm.scroll,
         DetailView::Strings => &mut app.strings.scroll,
-        DetailView::LayoutMap => &mut app.layout_map.scroll,
     }
+}
+
+fn scroll_up(app: &mut App, n: usize) {
+    *scroll_mut(app) = scroll_mut(app).saturating_sub(n);
+}
+
+fn scroll_down(app: &mut App, n: usize) {
+    *scroll_mut(app) += n;
+}
+
+fn scroll_top(app: &mut App) {
+    *scroll_mut(app) = 0;
+}
+
+fn scroll_bottom(app: &mut App) {
+    *scroll_mut(app) = usize::MAX;
 }
 
 fn handle_key(app: &mut App, key: KeyCode) {
@@ -343,63 +329,35 @@ fn handle_key(app: &mut App, key: KeyCode) {
 
     match key {
         KeyCode::Char('q') => app.should_quit = true,
-        KeyCode::Char('H') | KeyCode::Char('h') => {
-            if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Hexdump) {
-                if app.hexdump.cursor_offset > 0 {
-                    app.hexdump.cursor_offset -= 1;
-                    let row = app.hexdump.cursor_offset / 16;
-                    if row < app.hexdump.scroll {
-                        app.hexdump.scroll = app.hexdump.scroll.saturating_sub(1);
-                    }
+
+        // Back navigation
+        KeyCode::Esc => {
+            if app.focus == Focus::Detail
+                && matches!(app.current_view, DetailView::Disassembly)
+                && app.disasm_subfocus == DisasmSubFocus::Instructions
+            {
+                app.disasm_subfocus = DisasmSubFocus::FuncList;
+            } else if let Some(ref prev) = app.prev_view {
+                let v = prev.clone();
+                let n = app.prev_node.clone();
+                app.current_view = v;
+                app.prev_view = None;
+                app.prev_node = None;
+                if let Some(node) = n {
+                    app.tree.select_node(&node);
                 }
-            } else {
+            }
+        }
+
+        // Help
+        KeyCode::Char('?') => app.show_help = true,
+        KeyCode::Char('H') => {
+            if app.focus == Focus::Detail {
                 app.show_help = true;
             }
         }
-        KeyCode::Char('l') => {
-            if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Hexdump) {
-                app.hexdump.cursor_offset += 1;
-                let row = app.hexdump.cursor_offset / 16;
-                let visible_rows = 20;
-                if row >= app.hexdump.scroll + visible_rows - 1 {
-                    app.hexdump.scroll += 1;
-                }
-            }
-        }
-        KeyCode::Char('G') => {
-            if app.focus == Focus::Detail {
-                *get_scroll(app) = usize::MAX;
-            }
-        }
-        KeyCode::Char('g') => {
-            if app.focus == Focus::Detail {
-                if app.pending_g {
-                    app.pending_g = false;
-                    *get_scroll(app) = 0;
-                    if matches!(app.current_view, DetailView::Hexdump) {
-                        app.hexdump.cursor_offset = 0;
-                    }
-                } else {
-                    app.pending_g = true;
-                }
-            }
-        }
-        KeyCode::Char('u') => {
-            app.pending_g = false;
-            if app.focus == Focus::Detail {
-                let s = get_scroll(app);
-                *s = s.saturating_sub(10);
-            }
-        }
-        KeyCode::Char('d') => {
-            app.pending_g = false;
-            if app.focus == Focus::Detail {
-                *get_scroll(app) += 10;
-            }
-        }
-        KeyCode::Char('?') => {
-            app.show_help = true;
-        }
+
+        // Search
         KeyCode::Char('/') => {
             app.search.active = true;
             app.search.input.clear();
@@ -415,6 +373,7 @@ fn handle_key(app: &mut App, key: KeyCode) {
                 crate::ui::search::prev_result(app);
             }
         }
+
         KeyCode::Tab => {
             app.focus = match app.focus {
                 Focus::Tree => Focus::Detail,
@@ -422,15 +381,13 @@ fn handle_key(app: &mut App, key: KeyCode) {
                 Focus::Search => Focus::Search,
             };
         }
+
+        // less-style navigation
         KeyCode::Up | KeyCode::Char('k') => {
+            app.pending_g = false;
             if app.focus == Focus::Tree {
                 app.tree.move_up();
                 update_view(app);
-            } else if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Disassembly) {
-                if app.disasm.selected_function > 0 {
-                    app.disasm.selected_function -= 1;
-                    app.disasm.scroll = 0;
-                }
             } else if app.focus == Focus::Detail {
                 match app.current_view {
                     DetailView::Hexdump => {
@@ -439,7 +396,17 @@ fn handle_key(app: &mut App, key: KeyCode) {
                         }
                         let row = app.hexdump.cursor_offset / 16;
                         if row < app.hexdump.scroll {
-                            app.hexdump.scroll = app.hexdump.scroll.saturating_sub(1);
+                            scroll_up(app, 1);
+                        }
+                    }
+                    DetailView::Disassembly => {
+                        if app.disasm_subfocus == DisasmSubFocus::FuncList {
+                            if app.disasm.selected_function > 0 {
+                                app.disasm.selected_function -= 1;
+                                app.disasm.scroll = 0;
+                            }
+                        } else {
+                            scroll_up(app, 1);
                         }
                     }
                     DetailView::LayoutMap => {
@@ -447,31 +414,35 @@ fn handle_key(app: &mut App, key: KeyCode) {
                             app.layout_map.selected_row -= 1;
                         }
                     }
-                    _ => {
-                        *get_scroll(app) = get_scroll(app).saturating_sub(1);
-                    }
+                    _ => scroll_up(app, 1),
                 }
             }
         }
         KeyCode::Down | KeyCode::Char('j') => {
+            app.pending_g = false;
             if app.focus == Focus::Tree {
                 app.tree.move_down();
                 update_view(app);
-            } else if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Disassembly) {
-                if let Some(ref disasm) = app.disasm_cache {
-                    if app.disasm.selected_function + 1 < disasm.functions.len() {
-                        app.disasm.selected_function += 1;
-                        app.disasm.scroll = 0;
-                    }
-                }
             } else if app.focus == Focus::Detail {
                 match app.current_view {
                     DetailView::Hexdump => {
                         app.hexdump.cursor_offset += 16;
                         let row = app.hexdump.cursor_offset / 16;
                         let visible_rows = 20;
-                        if row >= app.hexdump.scroll + visible_rows - 1 {
-                            app.hexdump.scroll += 1;
+                        if row >= app.hexdump.scroll.saturating_add(visible_rows - 1) {
+                            scroll_down(app, 1);
+                        }
+                    }
+                    DetailView::Disassembly => {
+                        if app.disasm_subfocus == DisasmSubFocus::FuncList {
+                            if let Some(ref disasm) = app.disasm_cache {
+                                if app.disasm.selected_function + 1 < disasm.functions.len() {
+                                    app.disasm.selected_function += 1;
+                                    app.disasm.scroll = 0;
+                                }
+                            }
+                        } else {
+                            scroll_down(app, 1);
                         }
                     }
                     DetailView::LayoutMap => {
@@ -479,25 +450,72 @@ fn handle_key(app: &mut App, key: KeyCode) {
                             app.layout_map.selected_row += 1;
                         }
                     }
-                    _ => {
-                        *get_scroll(app) += 1;
+                    _ => scroll_down(app, 1),
+                }
+            }
+        }
+
+        // Hexdump cursor movement
+        KeyCode::Char('h') => {
+            app.pending_g = false;
+            if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Hexdump) {
+                if app.hexdump.cursor_offset > 0 {
+                    app.hexdump.cursor_offset -= 1;
+                    let row = app.hexdump.cursor_offset / 16;
+                    if row < app.hexdump.scroll {
+                        scroll_up(app, 1);
                     }
                 }
             }
         }
-        KeyCode::Right => {
+        KeyCode::Char('l') => {
+            app.pending_g = false;
             if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Hexdump) {
                 app.hexdump.cursor_offset += 1;
                 let row = app.hexdump.cursor_offset / 16;
                 let visible_rows = 20;
-                if row >= app.hexdump.scroll + visible_rows - 1 {
-                    app.hexdump.scroll += 1;
+                if row >= app.hexdump.scroll.saturating_add(visible_rows - 1) {
+                    scroll_down(app, 1);
+                }
+            }
+        }
+        KeyCode::Right => {
+            app.pending_g = false;
+            if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Hexdump) {
+                app.hexdump.cursor_offset += 1;
+                let row = app.hexdump.cursor_offset / 16;
+                let visible_rows = 20;
+                if row >= app.hexdump.scroll.saturating_add(visible_rows - 1) {
+                    scroll_down(app, 1);
+                }
+            } else if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Disassembly) {
+                if app.disasm_subfocus == DisasmSubFocus::FuncList {
+                    app.disasm_subfocus = DisasmSubFocus::Instructions;
                 }
             } else if app.focus == Focus::Tree {
                 app.tree.toggle_expand();
             }
         }
+        KeyCode::Left => {
+            app.pending_g = false;
+            if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Hexdump) {
+                if app.hexdump.cursor_offset > 0 {
+                    app.hexdump.cursor_offset -= 1;
+                    let row = app.hexdump.cursor_offset / 16;
+                    if row < app.hexdump.scroll {
+                        scroll_up(app, 1);
+                    }
+                }
+            } else if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Disassembly) {
+                if app.disasm_subfocus == DisasmSubFocus::Instructions {
+                    app.disasm_subfocus = DisasmSubFocus::FuncList;
+                }
+            } else if app.focus == Focus::Tree {
+                app.tree.collapse_current();
+            }
+        }
         KeyCode::Enter => {
+            app.pending_g = false;
             if app.focus == Focus::Detail && matches!(app.current_view, DetailView::LayoutMap) {
                 layout_map_enter(app);
             } else if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Disassembly) {
@@ -506,37 +524,75 @@ fn handle_key(app: &mut App, key: KeyCode) {
                 app.tree.toggle_expand();
             }
         }
-        KeyCode::Left => {
-            if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Hexdump) {
-                if app.hexdump.cursor_offset > 0 {
-                    app.hexdump.cursor_offset -= 1;
-                    let row = app.hexdump.cursor_offset / 16;
-                    if row < app.hexdump.scroll {
-                        app.hexdump.scroll = app.hexdump.scroll.saturating_sub(1);
+
+        // less-style: gg = top, G = bottom
+        KeyCode::Char('g') => {
+            if app.focus == Focus::Detail {
+                if app.pending_g {
+                    app.pending_g = false;
+                    scroll_top(app);
+                    if matches!(app.current_view, DetailView::Hexdump) {
+                        app.hexdump.cursor_offset = 0;
                     }
+                } else {
+                    app.pending_g = true;
                 }
-            } else if app.focus == Focus::Tree {
-                app.tree.toggle_expand();
+            }
+        }
+        KeyCode::Char('G') => {
+            app.pending_g = false;
+            if app.focus == Focus::Detail {
+                scroll_bottom(app);
+            }
+        }
+
+        // less-style: Ctrl+u/d = half page, Space = page down, b = page up
+        KeyCode::Char('u') => {
+            app.pending_g = false;
+            if app.focus == Focus::Detail {
+                scroll_up(app, 10);
+            }
+        }
+        KeyCode::Char('d') => {
+            app.pending_g = false;
+            if app.focus == Focus::Detail {
+                scroll_down(app, 10);
+            }
+        }
+        KeyCode::Char(' ') => {
+            app.pending_g = false;
+            if app.focus == Focus::Detail {
+                scroll_down(app, 20);
+            }
+        }
+        KeyCode::Char('b') => {
+            app.pending_g = false;
+            if app.focus == Focus::Detail {
+                scroll_up(app, 20);
             }
         }
         KeyCode::PageUp => {
+            app.pending_g = false;
             if app.focus == Focus::Detail {
-                *get_scroll(app) = get_scroll(app).saturating_sub(10);
+                scroll_up(app, 10);
             }
         }
         KeyCode::PageDown => {
+            app.pending_g = false;
             if app.focus == Focus::Detail {
-                *get_scroll(app) += 10;
+                scroll_down(app, 10);
             }
         }
         KeyCode::Home => {
+            app.pending_g = false;
             if app.focus == Focus::Detail {
-                *get_scroll(app) = 0;
+                scroll_top(app);
             }
         }
         KeyCode::End => {
+            app.pending_g = false;
             if app.focus == Focus::Detail {
-                *get_scroll(app) = usize::MAX;
+                scroll_bottom(app);
             }
         }
         _ => {
@@ -550,6 +606,8 @@ fn layout_map_enter(app: &mut App) {
     let regions = build_regions(&app.data);
     if let Some(region) = regions.get(app.layout_map.selected_row) {
         if let Some(ref target) = region.target {
+            app.prev_view = Some(DetailView::LayoutMap);
+            app.prev_node = Some(TreeNodeType::LayoutMap);
             match target {
                 LayoutTarget::ElfHeader => {
                     app.tree.select_node(&TreeNodeType::ElfHeader);

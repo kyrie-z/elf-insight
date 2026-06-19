@@ -130,7 +130,6 @@ impl TreeState {
             if !node.children.is_empty() {
                 let node_type = node.node_type.clone();
                 let node_label = node.label.clone();
-                // Search top-level nodes
                 for top_node in &mut self.nodes {
                     if top_node.node_type == node_type && top_node.label == node_label {
                         top_node.expanded = !top_node.expanded;
@@ -138,10 +137,36 @@ impl TreeState {
                         self.selected_node = self.node_at_index(idx);
                         return;
                     }
-                    // Search children
                     for child in &mut top_node.children {
                         if child.node_type == node_type && child.label == node_label {
                             child.expanded = !child.expanded;
+                            self.rebuild_flat_list();
+                            self.selected_node = self.node_at_index(idx);
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn collapse_current(&mut self) {
+        let flat = self.collect_flat();
+        let idx = self.list_state.selected().unwrap_or(0);
+        if let Some((node, _, _)) = flat.get(idx) {
+            if !node.children.is_empty() && node.expanded {
+                let node_type = node.node_type.clone();
+                let node_label = node.label.clone();
+                for top_node in &mut self.nodes {
+                    if top_node.node_type == node_type && top_node.label == node_label {
+                        top_node.expanded = false;
+                        self.rebuild_flat_list();
+                        self.selected_node = self.node_at_index(idx);
+                        return;
+                    }
+                    for child in &mut top_node.children {
+                        if child.node_type == node_type && child.label == node_label {
+                            child.expanded = false;
                             self.rebuild_flat_list();
                             self.selected_node = self.node_at_index(idx);
                             return;

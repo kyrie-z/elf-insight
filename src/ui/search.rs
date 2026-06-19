@@ -197,8 +197,7 @@ fn build_overview_lines(app: &App) -> Vec<String> {
     let mut lines = Vec::new();
 
     lines.push(format!("ELF Header"));
-    let magic_hex: Vec<String> = data.raw_bytes[..16].iter().map(|b| format!("{:02x}", b)).collect();
-    lines.push(format!("  Magic:   [{}]", magic_hex.join(", ")));
+    lines.push(format!("  Magic:   {:02x?}", &data.raw_bytes[..16]));
     lines.push(format!("  Class:   {}", if data.class == 2 { "ELF64" } else { "ELF32" }));
     lines.push(format!("  Data:    {}", if data.data == 1 { "2's complement, little endian" } else { "2's complement, big endian" }));
     lines.push(format!("  Version: {} (current)", data.version));

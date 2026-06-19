@@ -3,13 +3,24 @@ use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 
 pub fn render(f: &mut Frame, _area: Rect) {
     let help_text = vec![
-        " Navigation (vi-style in detail panel)",
-        " ─────────────────────────────────────",
-        "  ↑↓ / jk   Move focus / Line scroll",
-        "  →, Enter  Expand node (tree) / Next byte (hex)",
-        "  ←         Collapse node (tree) / Prev byte (hex)",
-        "  h / l     Prev/next byte (hexdump)",
-        "  Tab       Switch panel (tree ↔ detail)",
+        " less-style Navigation",
+        " ────────────────────",
+        "  ↑↓ / jk   Line up / down",
+        "  gg        Jump to top",
+        "  G         Jump to bottom",
+        "  Space     Page down",
+        "  b         Page up",
+        "  u / d     Half-page up / down",
+        "  Home/End  Jump to top / bottom",
+        "  PgUp/Dn   Page up / down",
+        "",
+        " Panels",
+        " ──────",
+        "  Tab       Switch tree ↔ detail",
+        "  ←→        Hex cursor / Disasm panel switch",
+        "  h / l     Hexdump byte cursor",
+        "  Enter     Expand tree / Enter layout region",
+        "  Esc       Back (disasm focus / layout jump)",
         "",
         " Search",
         " ──────",
@@ -18,18 +29,12 @@ pub fn render(f: &mut Frame, _area: Rect) {
         "  n / N     Next / previous result",
         "  Esc       Close search",
         "",
-        " Scrolling",
-        " ─────────",
-        "  PgUp/Dn   Page scroll",
-        "  u / d     Half-page up / down (vi-style)",
-        "  gg        Jump to top (detail panel)",
-        "  G         Jump to bottom (detail panel)",
-        "  Home/End  Jump to top / bottom",
-        "",
-        " Views",
-        " ─────",
-        "  ↑↓/jk    Switch function (disassembly)",
-        "  Enter     Jump to function start (disasm)",
+        " Disassembly",
+        " ───────────",
+        "  ↑↓/jk    Switch function (func list focus)",
+        "  ←→        Switch panel (func list ↔ instructions)",
+        "  Enter     Jump to function start",
+        "  Esc       Back to func list",
         "",
         " Global",
         " ──────",
@@ -39,7 +44,7 @@ pub fn render(f: &mut Frame, _area: Rect) {
     ]
     .join("\n");
 
-    let popup_area = centered_rect(52, 80, f.area());
+    let popup_area = centered_rect(58, 90, f.area());
 
     let p = Paragraph::new(help_text)
         .block(Block::default().borders(Borders::ALL).title(" Help "))

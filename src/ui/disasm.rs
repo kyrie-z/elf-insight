@@ -1,4 +1,4 @@
-use crate::app::{App, Focus};
+use crate::app::{App, DisasmSubFocus, Focus};
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
 
@@ -58,8 +58,14 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
 
     app.disasm.func_list_state.select(Some(app.disasm.selected_function));
 
+    let func_border_style = if app.focus == Focus::Detail && app.disasm_subfocus == DisasmSubFocus::FuncList {
+        border_style
+    } else {
+        border_style.fg(Color::Gray)
+    };
+
     let func_list = List::new(func_items)
-        .block(Block::default().borders(Borders::ALL).title("Functions").border_style(border_style))
+        .block(Block::default().borders(Borders::ALL).title("Functions").border_style(func_border_style))
         .highlight_style(Style::default().bg(Color::DarkGray).fg(Color::White));
 
     f.render_stateful_widget(func_list, chunks[0], &mut app.disasm.func_list_state);
@@ -105,6 +111,12 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     };
 
     let text = lines.join("\n");
-    let p = Paragraph::new(text).block(Block::default().borders(Borders::ALL).title(title).border_style(border_style));
+    let insn_border_style = if app.focus == Focus::Detail && app.disasm_subfocus == DisasmSubFocus::Instructions {
+        border_style
+    } else {
+        border_style.fg(Color::Gray)
+    };
+
+    let p = Paragraph::new(text).block(Block::default().borders(Borders::ALL).title(title).border_style(insn_border_style));
     f.render_widget(p, chunks[1]);
 }
