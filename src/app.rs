@@ -332,7 +332,12 @@ fn handle_key(app: &mut App, key: KeyCode) {
 
         // Back navigation
         KeyCode::Esc => {
-            if app.focus == Focus::Detail
+            // Clear search highlights first
+            if !app.search.query.is_empty() {
+                app.search.query.clear();
+                app.search.results.clear();
+                app.search.current_result = 0;
+            } else if app.focus == Focus::Detail
                 && matches!(app.current_view, DetailView::Disassembly)
                 && app.disasm_subfocus == DisasmSubFocus::Instructions
             {
@@ -364,14 +369,10 @@ fn handle_key(app: &mut App, key: KeyCode) {
             app.focus = Focus::Search;
         }
         KeyCode::Char('n') => {
-            if app.focus == Focus::Detail {
-                crate::ui::search::next_result(app);
-            }
+            crate::ui::search::next_result(app);
         }
         KeyCode::Char('N') => {
-            if app.focus == Focus::Detail {
-                crate::ui::search::prev_result(app);
-            }
+            crate::ui::search::prev_result(app);
         }
 
         KeyCode::Tab => {
