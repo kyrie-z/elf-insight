@@ -330,3 +330,109 @@ fn sym_vis_to_str(vis: u8) -> String {
         _ => format!("0x{:x}", vis),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_elf_on_real_binary() {
+        let data = parse_elf("/bin/ls").expect("Failed to parse /bin/ls");
+        assert_eq!(&data.raw_bytes[..4], &[0x7f, b'E', b'L', b'F']);
+        assert_eq!(data.class, 2, "Should be ELF64");
+        assert_eq!(data.data, 1, "Should be little endian");
+        assert!(!data.elf_type.is_empty());
+        assert!(!data.machine.is_empty());
+        assert!(!data.sections.is_empty());
+        assert!(!data.segments.is_empty());
+        assert!(data.sections.iter().any(|s| s.name == ".text"));
+        assert!(data.sections.iter().any(|s| s.name == ".rodata"));
+    }
+
+    #[test]
+    fn test_parse_elf_nonexistent_file() {
+        let result = parse_elf("/nonexistent/file");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_elf_type_to_str() {
+        assert_eq!(elf_type_to_str(goblin::elf::header::ET_NONE), "NONE");
+        assert_eq!(elf_type_to_str(goblin::elf::header::ET_REL), "REL (Relocatable)");
+        assert_eq!(elf_type_to_str(goblin::elf::header::ET_EXEC), "EXEC (Executable)");
+        assert_eq!(elf_type_to_str(goblin::elf::header::ET_DYN), "DYN (Shared object)");
+        assert_eq!(elf_type_to_str(goblin::elf::header::ET_CORE), "CORE");
+        assert_eq!(elf_type_to_str(0xFFFF), "0xffff");
+    }
+
+    #[test]
+    fn test_machine_to_str() {
+        assert_eq!(machine_to_str(goblin::elf::header::EM_X86_64), "AMD x86-64");
+        assert_eq!(machine_to_str(goblin::elf::header::EM_386), "Intel 80386");
+        assert_eq!(machine_to_str(goblin::elf::header::EM_ARM), "ARM");
+        assert_eq!(machine_to_str(goblin::elf::header::EM_AARCH64), "AArch64");
+        assert_eq!(machine_to_str(0xFFFF), "0xffff");
+    }
+
+    #[test]
+    fn test_os_abi_to_str() {
+        assert_eq!(os_abi_to_str(goblin::elf::header::ELFOSABI_NONE), "UNIX - System V");
+        assert_eq!(os_abi_to_str(goblin::elf::header::ELFOSABI_LINUX), "UNIX - Linux");
+        assert_eq!(os_abi_to_str(0xFF), "0xff");
+    }
+
+    #[test]
+    fn test_section_type_to_str() {
+        assert_eq!(section_type_to_str(goblin::elf::section_header::SHT_PROGBITS), "PROGBITS");
+        assert_eq!(section_type_to_str(goblin::elf::section_header::SHT_NOBITS), "NOBITS");
+        assert_eq!(section_type_to_str(0xDEAD), "0xdead");
+    }
+
+    #[test]
+    fn test_section_flags_to_str() {
+        let w = goblin::elf::section_header::SHF_WRITE as u64;
+        let a = goblin::elf::section_header::SHF_ALLOC as u64;
+        let x = goblin::elf::section_header::SHF_EXECINSTR as u64;
+        assert_eq!(section_flags_to_str(0), "-");
+        assert_eq!(section_flags_to_str(w), "W");
+        assert_eq!(section_flags_to_str(a), "A");
+        assert_eq!(section_flags_to_str(x), "X");
+        assert_eq!(section_flags_to_str(w | a), "WA");
+        assert_eq!(section_flags_to_str(w | a | x), "WAX");
+    }
+
+    #[test]
+    fn test_segment_type_to_str() {
+        assert_eq!(segment_type_to_str(goblin::elf::program_header::PT_LOAD), "LOAD");
+        assert_eq!(segment_type_to_str(goblin::elf::program_header::PT_DYNAMIC), "DYNAMIC");
+        assert_eq!(segment_type_to_str(goblin::elf::program_header::PT_NOTE), "NOTE");
+        assert_eq!(segment_type_to_str(0xFFFF), "0xffff");
+    }
+
+    #[test]
+    fn test_segment_flags_to_str() {
+        let r = goblin::elf::program_header::PF_R;
+        let w = goblin::elf::program_header::PF_W;
+        let x = goblin::elf::program_header::PF_X;
+        assert_eq!(segment_flags_to_str(0), "");
+        assert_eq!(segment_flags_to_str(r), "R");
+        assert_eq!(segment_flags_to_str(w), "W");
+        assert_eq!(segment_flags_to_str(x), "E");
+        assert_eq!(segment_flags_to_str(r | w | x), "RWE");
+    }
+
+    #[test]
+    fn test_sym_bind_to_str() {
+        assert_eq!(sym_bind_to_str(goblin::elf::sym::STB_LOCAL), "LOCAL");
+        assert_eq!(sym_bind_to_str(goblin::elf::sym::STB_GLOBAL), "GLOBAL");
+        assert_eq!(sym_bind_to_str(goblin::elf::sym::STB_WEAK), "WEAK");
+        assert_eq!(sym_bind_to_str(0xFF), "0xff");
+    }
+
+    #[test]
+    fn test_sym_vis_to_str() {
+        assert_eq!(sym_vis_to_str(goblin::elf::sym::STV_DEFAULT), "DEFAULT");
+        assert_eq!(sym_vis_to_str(goblin::elf::sym::STV_HIDDEN), "HIDDEN");
+        assert_eq!(sym_vis_to_str(0xFF), "0xff");
+    }
+}

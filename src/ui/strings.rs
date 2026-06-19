@@ -86,3 +86,51 @@ fn extract_strings(data: &[u8]) -> Vec<(usize, String)> {
 
     results
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_empty() {
+        let result = extract_strings(&[]);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_extract_single_string() {
+        let data = b"hello\0";
+        let result = extract_strings(data);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].1, "hello");
+        assert_eq!(result[0].0, 0);
+    }
+
+    #[test]
+    fn test_extract_multiple_strings() {
+        let data = b"hello\0world\0";
+        let result = extract_strings(data);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].1, "hello");
+        assert_eq!(result[0].0, 0);
+        assert_eq!(result[1].1, "world");
+        assert_eq!(result[1].0, 6);
+    }
+
+    #[test]
+    fn test_skip_short_strings() {
+        let data = b"a\0hello\0";
+        let result = extract_strings(data);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].1, "hello");
+    }
+
+    #[test]
+    fn test_non_printable_chars() {
+        let data = b"he\x01lo\0";
+        let result = extract_strings(data);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].1, "lo");
+        assert_eq!(result[0].0, 3);
+    }
+}

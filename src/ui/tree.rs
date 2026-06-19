@@ -157,3 +157,97 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
 
     f.render_stateful_widget(list, area, &mut app.tree.list_state);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_nodes() -> Vec<TreeNode> {
+        vec![
+            TreeNode {
+                label: "Overview".into(),
+                node_type: TreeNodeType::Overview,
+                depth: 0,
+                children: vec![],
+                expanded: true,
+            },
+            TreeNode {
+                label: "Sections".into(),
+                node_type: TreeNodeType::SectionsGroup,
+                depth: 0,
+                children: vec![
+                    TreeNode {
+                        label: ".text".into(),
+                        node_type: TreeNodeType::SectionBody { index: 0 },
+                        depth: 1,
+                        children: vec![],
+                        expanded: true,
+                    },
+                    TreeNode {
+                        label: ".data".into(),
+                        node_type: TreeNodeType::SectionBody { index: 1 },
+                        depth: 1,
+                        children: vec![],
+                        expanded: true,
+                    },
+                ],
+                expanded: true,
+            },
+        ]
+    }
+
+    #[test]
+    fn test_tree_initial_state() {
+        let nodes = make_nodes();
+        let state = TreeState::new(nodes);
+        assert_eq!(state.flat_list.len(), 4);
+        assert_eq!(state.list_state.selected(), Some(0));
+        assert_eq!(state.selected_node, Some(TreeNodeType::Overview));
+    }
+
+    #[test]
+    fn test_move_down() {
+        let nodes = make_nodes();
+        let mut state = TreeState::new(nodes);
+        state.move_down();
+        assert_eq!(state.list_state.selected(), Some(1));
+        assert_eq!(state.selected_node, Some(TreeNodeType::SectionsGroup));
+    }
+
+    #[test]
+    fn test_move_up_does_nothing_at_top() {
+        let nodes = make_nodes();
+        let mut state = TreeState::new(nodes);
+        state.move_up();
+        assert_eq!(state.list_state.selected(), Some(0));
+    }
+
+    #[test]
+    fn test_toggle_collapse() {
+        let nodes = make_nodes();
+        let mut state = TreeState::new(nodes);
+        state.move_down();
+        state.toggle_expand();
+        assert_eq!(state.flat_list.len(), 2);
+    }
+
+    #[test]
+    fn test_toggle_expand_back() {
+        let nodes = make_nodes();
+        let mut state = TreeState::new(nodes);
+        state.move_down();
+        state.toggle_expand();
+        state.toggle_expand();
+        assert_eq!(state.flat_list.len(), 4);
+    }
+
+    #[test]
+    fn test_node_at_index_returns_correct_type() {
+        let nodes = make_nodes();
+        let state = TreeState::new(nodes);
+        assert_eq!(state.node_at_index(0), Some(TreeNodeType::Overview));
+        assert_eq!(state.node_at_index(1), Some(TreeNodeType::SectionsGroup));
+        assert_eq!(state.node_at_index(2), Some(TreeNodeType::SectionBody { index: 0 }));
+        assert_eq!(state.node_at_index(999), None);
+    }
+}
