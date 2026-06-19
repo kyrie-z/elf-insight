@@ -227,7 +227,7 @@ fn handle_events(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
 fn handle_key(app: &mut App, key: KeyCode) {
     if app.show_help {
         match key {
-            KeyCode::Esc | KeyCode::Char('?') | KeyCode::Char('h') => {
+            KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('?') | KeyCode::Char('h') => {
                 app.show_help = false;
             }
             _ => {}

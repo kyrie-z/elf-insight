@@ -3,32 +3,40 @@ use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 
 pub fn render(f: &mut Frame, _area: Rect) {
     let help_text = vec![
-        "┌─ Keybindings ─────────────────────────────────────────────┐",
-        "│                                                            │",
-        "│  Navigation                          Search                │",
-        "│  ──────────                          ──────                │",
-        "│  ↑↓    Move focus          /     Open search              │",
-        "│  →/Enter  Expand node      Enter Execute search           │",
-        "│  ←     Collapse node       n/N   Next/prev result         │",
-        "│  Tab   Switch panel        Esc   Close search             │",
-        "│                                                            │",
-        "│  Scrolling                          View                  │",
-        "│  ─────────                          ────                  │",
-        "│  ↑↓    Line scroll         ←→    Switch function (disasm) │",
-        "│  PgUp/PgDn  Page scroll    g     Goto offset (hexdump)    │",
-        "│  Home/End   Jump top/bottom                               │",
-        "│                                                            │",
-        "│  Global                                                    │",
-        "│  ──────                                                    │",
-        "│  q     Quit                                                │",
-        "│  ?/h   Toggle this help                                   │",
-        "│  Esc   Close help                                         │",
-        "│                                                            │",
-        "└────────────────────────────────────────────────────────────┘",
+        " Navigation",
+        " ──────────",
+        "  ↑↓        Move focus",
+        "  →, Enter  Expand node",
+        "  ←         Collapse node",
+        "  Tab       Switch panel (tree ↔ detail)",
+        "",
+        " Search",
+        " ──────",
+        "  /         Open search bar",
+        "  Enter     Execute search",
+        "  n / N     Next / previous result",
+        "  Esc       Close search",
+        "",
+        " Scrolling",
+        " ─────────",
+        "  ↑↓        Line scroll",
+        "  PgUp/Dn   Page scroll",
+        "  Home/End  Jump to top / bottom",
+        "",
+        " Views",
+        " ─────",
+        "  ←→        Switch function (disassembly)",
+        "  g         Goto offset (hexdump)",
+        "",
+        " Global",
+        " ──────",
+        "  q         Quit",
+        "  ? / h     Toggle this help",
+        "  Esc / q   Close help",
     ]
     .join("\n");
 
-    let popup_area = centered_rect(60, 60, f.area());
+    let popup_area = centered_rect(42, 70, f.area());
 
     let p = Paragraph::new(help_text)
         .block(Block::default().borders(Borders::ALL).title(" Help "))
