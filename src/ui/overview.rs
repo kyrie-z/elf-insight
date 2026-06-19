@@ -1,5 +1,7 @@
 use crate::app::{App, Focus};
+use crate::ui::search;
 use ratatui::prelude::*;
+use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
 
 pub struct OverviewState {
@@ -85,8 +87,15 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         ));
     }
 
-    let text = lines.join("\n");
-    let total_lines = lines.len() as u16;
+    let mut text_lines: Vec<Line> = Vec::new();
+    let query = &app.search.query;
+    let hl = Style::default().fg(Color::Yellow).bg(Color::Rgb(80, 80, 0));
+
+    for line in &lines {
+        text_lines.push(search::highlight_line(line, query, hl));
+    }
+
+    let total_lines = text_lines.len() as u16;
     let area_height = area.height.saturating_sub(2);
 
     let max_scroll = total_lines.saturating_sub(area_height) as usize;
@@ -100,7 +109,7 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         Style::default()
     };
 
-    let p = Paragraph::new(text)
+    let p = Paragraph::new(text_lines)
         .block(Block::default().borders(Borders::ALL).title(format!("Overview - {}", app.data.file_path)).border_style(border_style))
         .scroll((app.overview.scroll as u16, 0));
 

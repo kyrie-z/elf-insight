@@ -1,5 +1,7 @@
 use crate::app::{App, DisasmSubFocus, Focus};
+use crate::ui::search;
 use ratatui::prelude::*;
+use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
 
 pub struct DisasmState {
@@ -71,7 +73,10 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     f.render_stateful_widget(func_list, chunks[0], &mut app.disasm.func_list_state);
 
     // Instructions
-    let mut lines = Vec::new();
+    let query = &app.search.query;
+    let hl = Style::default().fg(Color::Yellow).bg(Color::Rgb(80, 80, 0));
+
+    let mut lines: Vec<Line> = Vec::new();
     if let Some(func) = disasm.functions.get(app.disasm.selected_function) {
         let visible_rows = chunks[1].height.saturating_sub(2) as usize;
         let total_insns = func.end_idx - func.start_idx;
@@ -91,10 +96,11 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
                 .map(|b| format!("{:02x}", b))
                 .collect::<Vec<_>>()
                 .join(" ");
-            lines.push(format!(
+            let line = format!(
                 "0x{:08x}: {:20}  {} {}",
                 insn.address, bytes_str, insn.mnemonic, insn.operands
-            ));
+            );
+            lines.push(search::highlight_line(&line, query, hl));
         }
 
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
@@ -110,13 +116,12 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         "Disassembly".into()
     };
 
-    let text = lines.join("\n");
     let insn_border_style = if app.focus == Focus::Detail && app.disasm_subfocus == DisasmSubFocus::Instructions {
         border_style
     } else {
         border_style.fg(Color::Gray)
     };
 
-    let p = Paragraph::new(text).block(Block::default().borders(Borders::ALL).title(title).border_style(insn_border_style));
+    let p = Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title(title).border_style(insn_border_style));
     f.render_widget(p, chunks[1]);
 }

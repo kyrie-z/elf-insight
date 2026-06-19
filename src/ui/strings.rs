@@ -67,7 +67,7 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     f.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
 }
 
-fn extract_strings(data: &[u8]) -> Vec<(usize, String)> {
+pub fn extract_strings(data: &[u8]) -> Vec<(usize, String)> {
     let mut results = Vec::new();
     let mut start = None;
 
