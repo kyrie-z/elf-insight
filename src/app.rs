@@ -103,6 +103,22 @@ fn build_tree(data: &ElfData) -> Vec<TreeNode> {
         expanded: true,
     });
 
+    nodes.push(TreeNode {
+        label: format!("Program Headers ({} entries)", data.phnum),
+        node_type: TreeNodeType::ProgramHeaders,
+        depth: 0,
+        children: vec![],
+        expanded: true,
+    });
+
+    nodes.push(TreeNode {
+        label: format!("Section Headers ({} entries)", data.shnum),
+        node_type: TreeNodeType::SectionHeaders,
+        depth: 0,
+        children: vec![],
+        expanded: true,
+    });
+
     let section_children: Vec<TreeNode> = data
         .sections
         .iter()
@@ -426,6 +442,11 @@ fn handle_key(app: &mut App, key: KeyCode) {
                             app.hexdump.scroll = app.hexdump.scroll.saturating_sub(1);
                         }
                     }
+                    DetailView::LayoutMap => {
+                        if app.layout_map.selected_row > 0 {
+                            app.layout_map.selected_row -= 1;
+                        }
+                    }
                     _ => {
                         *get_scroll(app) = get_scroll(app).saturating_sub(1);
                     }
@@ -453,6 +474,11 @@ fn handle_key(app: &mut App, key: KeyCode) {
                             app.hexdump.scroll += 1;
                         }
                     }
+                    DetailView::LayoutMap => {
+                        if app.layout_map.selected_row + 1 < app.layout_map.region_count {
+                            app.layout_map.selected_row += 1;
+                        }
+                    }
                     _ => {
                         *get_scroll(app) += 1;
                     }
@@ -472,7 +498,9 @@ fn handle_key(app: &mut App, key: KeyCode) {
             }
         }
         KeyCode::Enter => {
-            if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Disassembly) {
+            if app.focus == Focus::Detail && matches!(app.current_view, DetailView::LayoutMap) {
+                layout_map_enter(app);
+            } else if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Disassembly) {
                 app.disasm.scroll = 0;
             } else if app.focus == Focus::Tree {
                 app.tree.toggle_expand();
@@ -517,12 +545,41 @@ fn handle_key(app: &mut App, key: KeyCode) {
     }
 }
 
+fn layout_map_enter(app: &mut App) {
+    use crate::ui::layout_map::{LayoutTarget, build_regions};
+    let regions = build_regions(&app.data);
+    if let Some(region) = regions.get(app.layout_map.selected_row) {
+        if let Some(ref target) = region.target {
+            match target {
+                LayoutTarget::ElfHeader => {
+                    app.tree.select_node(&TreeNodeType::ElfHeader);
+                    app.current_view = DetailView::StructuredInfo;
+                }
+                LayoutTarget::ProgramHeaders => {
+                    app.tree.select_node(&TreeNodeType::ProgramHeaders);
+                    app.current_view = DetailView::StructuredInfo;
+                }
+                LayoutTarget::SectionHeaders => {
+                    app.tree.select_node(&TreeNodeType::SectionHeaders);
+                    app.current_view = DetailView::StructuredInfo;
+                }
+                LayoutTarget::SectionBody(index) => {
+                    app.tree.select_node(&TreeNodeType::SectionBody { index: *index });
+                    update_view(app);
+                }
+            }
+        }
+    }
+}
+
 fn update_view(app: &mut App) {
     if let Some(ref node_type) = app.tree.selected_node {
         app.current_view = match node_type {
             TreeNodeType::Overview => DetailView::Overview,
             TreeNodeType::LayoutMap => DetailView::LayoutMap,
             TreeNodeType::ElfHeader => DetailView::StructuredInfo,
+            TreeNodeType::ProgramHeaders => DetailView::StructuredInfo,
+            TreeNodeType::SectionHeaders => DetailView::StructuredInfo,
             TreeNodeType::SectionsGroup => DetailView::Overview,
             TreeNodeType::SectionHeader { .. } => DetailView::StructuredInfo,
             TreeNodeType::SectionBody { index } => {

@@ -5,12 +5,88 @@ use ratatui::widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientatio
 
 pub struct LayoutMapState {
     pub scroll: usize,
+    pub selected_row: usize,
+    pub region_count: usize,
 }
 
 impl LayoutMapState {
     pub fn new() -> Self {
-        LayoutMapState { scroll: 0 }
+        LayoutMapState { scroll: 0, selected_row: 0, region_count: 0 }
     }
+}
+
+#[derive(Clone)]
+pub struct LayoutRegion {
+    pub label: String,
+    pub offset: u64,
+    pub size: u64,
+    pub color: Color,
+    pub target: Option<LayoutTarget>,
+}
+
+#[derive(Clone)]
+pub enum LayoutTarget {
+    ElfHeader,
+    ProgramHeaders,
+    SectionHeaders,
+    SectionBody(usize),
+}
+
+pub fn build_regions(data: &crate::elf::parser::ElfData) -> Vec<LayoutRegion> {
+    let mut regions: Vec<LayoutRegion> = Vec::new();
+
+    regions.push(LayoutRegion {
+        label: "ELF Header".into(),
+        offset: 0,
+        size: data.ehsize as u64,
+        color: Color::Rgb(255, 200, 60),
+        target: Some(LayoutTarget::ElfHeader),
+    });
+
+    if data.phnum > 0 && data.phoff > 0 {
+        regions.push(LayoutRegion {
+            label: format!("Program Headers ({} entries)", data.phnum),
+            offset: data.phoff,
+            size: data.phnum as u64 * data.phentsize as u64,
+            color: Color::Rgb(100, 200, 255),
+            target: Some(LayoutTarget::ProgramHeaders),
+        });
+    }
+
+    if data.shnum > 0 && data.shoff > 0 {
+        regions.push(LayoutRegion {
+            label: format!("Section Headers ({} entries)", data.shnum),
+            offset: data.shoff,
+            size: data.shnum as u64 * data.shentsize as u64,
+            color: Color::Rgb(180, 140, 255),
+            target: Some(LayoutTarget::SectionHeaders),
+        });
+    }
+
+    for s in &data.sections {
+        if s.size == 0 || s.offset == 0 {
+            continue;
+        }
+        let color = if s.flags.contains('X') {
+            Color::Rgb(220, 80, 80)
+        } else if s.flags.contains('W') {
+            Color::Rgb(80, 140, 220)
+        } else if s.name.contains("str") {
+            Color::Rgb(100, 200, 100)
+        } else {
+            Color::Rgb(200, 180, 80)
+        };
+        regions.push(LayoutRegion {
+            label: s.name.clone(),
+            offset: s.offset,
+            size: s.size,
+            color,
+            target: Some(LayoutTarget::SectionBody(s.index)),
+        });
+    }
+
+    regions.sort_by_key(|r| r.offset);
+    regions
 }
 
 pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
@@ -39,68 +115,29 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
 
     let max_bar = (inner.width as usize).saturating_sub(70).max(10);
 
-    #[derive(Clone)]
-    struct Region {
-        label: String,
-        offset: u64,
-        size: u64,
-        color: Color,
+    let regions = build_regions(data);
+    app.layout_map.region_count = regions.len();
+
+    // Clamp selection
+    if app.layout_map.selected_row >= regions.len() {
+        app.layout_map.selected_row = regions.len().saturating_sub(1);
     }
 
-    let mut regions: Vec<Region> = Vec::new();
+    // Auto-scroll to keep selection visible
+    let data_rows = regions.len() + 4; // header + separator + regions + blank + legend
+    let visible = inner.height.saturating_sub(1) as usize;
+    let max_scroll = data_rows.saturating_sub(visible);
 
-    // ELF Header
-    regions.push(Region {
-        label: "ELF Header".into(),
-        offset: 0,
-        size: data.ehsize as u64,
-        color: Color::Rgb(255, 200, 60),
-    });
-
-    // Program Headers
-    if data.phnum > 0 && data.phoff > 0 {
-        regions.push(Region {
-            label: format!("Program Headers ({})", data.phnum),
-            offset: data.phoff,
-            size: data.phnum as u64 * data.phentsize as u64,
-            color: Color::Rgb(100, 200, 255),
-        });
+    let sel_line = app.layout_map.selected_row + 2; // +2 for header + separator
+    if sel_line < app.layout_map.scroll {
+        app.layout_map.scroll = sel_line;
     }
-
-    // Section Headers
-    if data.shnum > 0 && data.shoff > 0 {
-        regions.push(Region {
-            label: format!("Section Headers ({})", data.shnum),
-            offset: data.shoff,
-            size: data.shnum as u64 * data.shentsize as u64,
-            color: Color::Rgb(180, 140, 255),
-        });
+    if sel_line >= app.layout_map.scroll + visible {
+        app.layout_map.scroll = sel_line.saturating_sub(visible - 1);
     }
-
-    // Section data regions
-    for s in &data.sections {
-        if s.size == 0 || s.offset == 0 {
-            continue;
-        }
-        let color = if s.flags.contains('X') {
-            Color::Rgb(220, 80, 80)
-        } else if s.flags.contains('W') {
-            Color::Rgb(80, 140, 220)
-        } else if s.name.contains("str") {
-            Color::Rgb(100, 200, 100)
-        } else {
-            Color::Rgb(200, 180, 80)
-        };
-        regions.push(Region {
-            label: s.name.clone(),
-            offset: s.offset,
-            size: s.size,
-            color,
-        });
+    if app.layout_map.scroll > max_scroll {
+        app.layout_map.scroll = max_scroll;
     }
-
-    // Sort by offset
-    regions.sort_by_key(|r| r.offset);
 
     let mut lines: Vec<Line> = Vec::new();
 
@@ -114,7 +151,9 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     ]));
     lines.push(Line::from("─".repeat(inner.width as usize - 2)));
 
-    for region in &regions {
+    let sel_style = Style::default().bg(Color::Rgb(60, 60, 80));
+
+    for (i, region) in regions.iter().enumerate() {
         let pct = (region.size as f64 / file_size as f64) * 100.0;
         let bar_len = ((region.size as f64 / file_size as f64) * max_bar as f64) as usize;
         let bar_len = bar_len.max(1).min(max_bar);
@@ -125,11 +164,22 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
             region.label.clone()
         };
 
+        let line_style = if i == app.layout_map.selected_row {
+            sel_style
+        } else {
+            Style::default()
+        };
+
+        let prefix = if i == app.layout_map.selected_row { "▶" } else { " " };
+
         let mut spans = vec![
-            Span::raw(format!(
-                " {:<40}  0x{:06x}  0x{:08x}  {:5.1}%  ",
-                label, region.offset, region.size, pct
-            )),
+            Span::styled(
+                format!(
+                    "{}{:<40}  0x{:06x}  0x{:08x}  {:5.1}%  ",
+                    prefix, label, region.offset, region.size, pct
+                ),
+                line_style,
+            ),
             Span::styled(
                 "█".repeat(bar_len),
                 Style::default().fg(region.color),
@@ -159,14 +209,6 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         })
         .collect();
     lines.push(Line::from(legend_spans));
-
-    let total = lines.len();
-    let visible = inner.height.saturating_sub(1) as usize;
-    let max_scroll = total.saturating_sub(visible);
-
-    if app.layout_map.scroll > max_scroll {
-        app.layout_map.scroll = max_scroll;
-    }
 
     let p = Paragraph::new(lines).scroll((app.layout_map.scroll as u16, 0));
 

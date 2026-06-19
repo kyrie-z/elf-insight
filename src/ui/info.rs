@@ -17,6 +17,8 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     let node_type = app.tree.selected_node.clone();
     let lines = match node_type {
         Some(TreeNodeType::ElfHeader) => render_elf_header(app),
+        Some(TreeNodeType::ProgramHeaders) => render_program_headers(app),
+        Some(TreeNodeType::SectionHeaders) => render_section_headers(app),
         Some(TreeNodeType::SectionHeader { index }) => render_section_header(app, index),
         Some(TreeNodeType::SectionBody { index }) => render_section_body_info(app, index),
         Some(TreeNodeType::Segment { index }) => render_segment(app, index),
@@ -54,6 +56,43 @@ fn render_elf_header(app: &App) -> Vec<String> {
         format!("EH size:       {} bytes", d.ehsize),
         format!("SH strndx:     {}", d.shstrndx),
     ]
+}
+
+fn render_program_headers(app: &App) -> Vec<String> {
+    let d = &app.data;
+    let mut lines = vec![
+        format!("Program Headers: {} entries at offset 0x{:x}", d.phnum, d.phoff),
+        format!("Entry size: {} bytes", d.phentsize),
+        format!(""),
+        format!("{:<6} {:<14} {:<10} {:<10} {:<10} {:<10} {:<10} {:<6} {:<6}",
+            "Idx", "Type", "Offset", "VirtAddr", "PhysAddr", "FileSiz", "MemSiz", "Flags", "Align"),
+    ];
+    for s in &d.segments {
+        lines.push(format!(
+            "{:<6} {:<14} 0x{:08x} 0x{:08x} 0x{:08x} 0x{:08x} 0x{:08x} {:<6} 0x{:x}",
+            s.index, s.ty, s.offset, s.vaddr, s.paddr, s.filesz, s.memsz, s.flags, s.align
+        ));
+    }
+    lines
+}
+
+fn render_section_headers(app: &App) -> Vec<String> {
+    let d = &app.data;
+    let mut lines = vec![
+        format!("Section Headers: {} entries at offset 0x{:x}", d.shnum, d.shoff),
+        format!("Entry size: {} bytes", d.shentsize),
+        format!(""),
+        format!("{:<4} {:<20} {:<12} {:<12} {:<10} {:<10} {:<6}",
+            "Idx", "Name", "Type", "Addr", "Offset", "Size", "Flags"),
+    ];
+    for s in &d.sections {
+        let name = if s.name.len() > 20 { format!("{:.17}...", s.name) } else { s.name.clone() };
+        lines.push(format!(
+            "{:<4} {:<20} {:<12} 0x{:010x} 0x{:08x} 0x{:08x} {:<6}",
+            s.index, name, s.ty, s.addr, s.offset, s.size, s.flags
+        ));
+    }
+    lines
 }
 
 fn render_section_header(app: &App, index: usize) -> Vec<String> {

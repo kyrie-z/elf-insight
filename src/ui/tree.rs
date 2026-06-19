@@ -7,6 +7,8 @@ pub enum TreeNodeType {
     Overview,
     LayoutMap,
     ElfHeader,
+    ProgramHeaders,
+    SectionHeaders,
     SectionsGroup,
     SectionHeader { index: usize },
     SectionBody { index: usize },
@@ -97,6 +99,17 @@ impl TreeState {
         if idx + 1 < flat.len() {
             self.list_state.select(Some(idx + 1));
             self.selected_node = self.node_at_index(idx + 1);
+        }
+    }
+
+    pub fn select_node(&mut self, target: &TreeNodeType) {
+        let flat = self.collect_flat();
+        for (i, (node, _, _)) in flat.iter().enumerate() {
+            if &node.node_type == target {
+                self.list_state.select(Some(i));
+                self.selected_node = self.node_at_index(i);
+                return;
+            }
         }
     }
 
