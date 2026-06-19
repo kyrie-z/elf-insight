@@ -1,4 +1,5 @@
 use crate::elf::parser::ElfData;
+use crate::elf::disasm::{DisasmResult, disassemble_section, merge_symbols_with_functions};
 use crate::ui::tree::{TreeNode, TreeNodeType, TreeState};
 use crate::ui::overview::OverviewState;
 use crate::ui::info::InfoState;
@@ -35,6 +36,8 @@ pub struct App {
     pub current_view: DetailView,
     pub focus: Focus,
     pub should_quit: bool,
+    pub disasm_cache: Option<DisasmResult>,
+    pub current_disasm_section: Option<usize>,
 }
 
 #[derive(PartialEq, Eq)]
@@ -59,6 +62,8 @@ impl App {
             current_view: DetailView::Overview,
             focus: Focus::Tree,
             should_quit: false,
+            disasm_cache: None,
+            current_disasm_section: None,
         }
     }
 }
@@ -287,12 +292,24 @@ fn handle_key(app: &mut App, key: KeyCode) {
             }
         }
         KeyCode::Right | KeyCode::Enter => {
-            if app.focus == Focus::Tree {
+            if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Disassembly) {
+                if let Some(ref disasm) = app.disasm_cache {
+                    if app.disasm.selected_function + 1 < disasm.functions.len() {
+                        app.disasm.selected_function += 1;
+                        app.disasm.scroll = 0;
+                    }
+                }
+            } else if app.focus == Focus::Tree {
                 app.tree.toggle_expand();
             }
         }
         KeyCode::Left => {
-            if app.focus == Focus::Tree {
+            if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Disassembly) {
+                if app.disasm.selected_function > 0 {
+                    app.disasm.selected_function -= 1;
+                    app.disasm.scroll = 0;
+                }
+            } else if app.focus == Focus::Tree {
                 app.tree.toggle_expand();
             }
         }
@@ -314,7 +331,28 @@ fn update_view(app: &mut App) {
             TreeNodeType::ElfHeader => DetailView::StructuredInfo,
             TreeNodeType::SectionsGroup => DetailView::Overview,
             TreeNodeType::SectionHeader { .. } => DetailView::StructuredInfo,
-            TreeNodeType::SectionBody { .. } => DetailView::Hexdump,
+            TreeNodeType::SectionBody { index } => {
+                let section = &app.data.sections[*index];
+                if section.name == ".text" || section.flags.contains('X') {
+                    if app.current_disasm_section != Some(*index) {
+                        let disasm = disassemble_section(&section.data, section.addr);
+                        let merged = merge_symbols_with_functions(&app.data.symbols, disasm.functions);
+                        app.disasm_cache = Some(DisasmResult {
+                            functions: merged,
+                            all_instructions: disasm.all_instructions,
+                            bitness: disasm.bitness,
+                        });
+                        app.current_disasm_section = Some(*index);
+                        app.disasm.selected_function = 0;
+                        app.disasm.scroll = 0;
+                    }
+                    DetailView::Disassembly
+                } else if section.name.contains("str") {
+                    DetailView::Strings
+                } else {
+                    DetailView::Hexdump
+                }
+            }
             TreeNodeType::SegmentsGroup => DetailView::Overview,
             TreeNodeType::Segment { .. } => DetailView::StructuredInfo,
             TreeNodeType::SymbolsGroup => DetailView::Overview,
