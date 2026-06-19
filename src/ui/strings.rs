@@ -1,4 +1,4 @@
-use crate::app::App;
+use crate::app::{App, Focus};
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
 
@@ -51,7 +51,13 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     let text = visible_lines.join("\n");
     let title = format!("{} - {} strings", section.name, strings.len());
 
-    let p = Paragraph::new(text).block(Block::default().borders(Borders::ALL).title(title));
+    let border_style = if app.focus == Focus::Detail {
+        Style::default().fg(Color::Cyan)
+    } else {
+        Style::default()
+    };
+
+    let p = Paragraph::new(text).block(Block::default().borders(Borders::ALL).title(title).border_style(border_style));
     f.render_widget(p, area);
 
     let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)

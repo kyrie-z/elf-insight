@@ -1,4 +1,4 @@
-use crate::app::App;
+use crate::app::{App, Focus};
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
 
@@ -83,7 +83,13 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         "Disassembly".into()
     };
 
+    let border_style = if app.focus == Focus::Detail {
+        Style::default().fg(Color::Cyan)
+    } else {
+        Style::default()
+    };
+
     let text = lines.join("\n");
-    let p = Paragraph::new(text).block(Block::default().borders(Borders::ALL).title(title));
+    let p = Paragraph::new(text).block(Block::default().borders(Borders::ALL).title(title).border_style(border_style));
     f.render_widget(p, area);
 }

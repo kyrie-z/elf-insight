@@ -3,11 +3,12 @@ use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 
 pub fn render(f: &mut Frame, _area: Rect) {
     let help_text = vec![
-        " Navigation",
-        " ──────────",
-        "  ↑↓        Move focus",
-        "  →, Enter  Expand node",
-        "  ←         Collapse node",
+        " Navigation (vi-style in detail panel)",
+        " ─────────────────────────────────────",
+        "  ↑↓ / jk   Move focus / Line scroll",
+        "  →, Enter  Expand node (tree) / Next byte (hex)",
+        "  ←         Collapse node (tree) / Prev byte (hex)",
+        "  h / l     Prev/next byte (hexdump)",
         "  Tab       Switch panel (tree ↔ detail)",
         "",
         " Search",
@@ -19,24 +20,25 @@ pub fn render(f: &mut Frame, _area: Rect) {
         "",
         " Scrolling",
         " ─────────",
-        "  ↑↓        Line scroll",
         "  PgUp/Dn   Page scroll",
+        "  u / d     Half-page up / down (vi-style)",
+        "  gg        Jump to top (detail panel)",
+        "  G         Jump to bottom (detail panel)",
         "  Home/End  Jump to top / bottom",
         "",
         " Views",
         " ─────",
         "  ←→        Switch function (disassembly)",
-        "  g         Goto offset (hexdump)",
         "",
         " Global",
         " ──────",
         "  q         Quit",
-        "  ? / h     Toggle this help",
+        "  ?         Toggle this help",
         "  Esc / q   Close help",
     ]
     .join("\n");
 
-    let popup_area = centered_rect(42, 70, f.area());
+    let popup_area = centered_rect(52, 80, f.area());
 
     let p = Paragraph::new(help_text)
         .block(Block::default().borders(Borders::ALL).title(" Help "))

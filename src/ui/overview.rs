@@ -1,4 +1,4 @@
-use crate::app::App;
+use crate::app::{App, Focus};
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
 
@@ -89,8 +89,14 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         app.overview.scroll = max_scroll;
     }
 
+    let border_style = if app.focus == Focus::Detail {
+        Style::default().fg(Color::Cyan)
+    } else {
+        Style::default()
+    };
+
     let p = Paragraph::new(text)
-        .block(Block::default().borders(Borders::ALL).title(format!("Overview - {}", app.data.file_path)))
+        .block(Block::default().borders(Borders::ALL).title(format!("Overview - {}", app.data.file_path)).border_style(border_style))
         .scroll((app.overview.scroll as u16, 0));
 
     f.render_widget(p, area);

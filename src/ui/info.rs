@@ -1,4 +1,4 @@
-use crate::app::App;
+use crate::app::{App, Focus};
 use crate::ui::tree::TreeNodeType;
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Paragraph};
@@ -25,7 +25,13 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     };
 
     let text = lines.join("\n");
-    let p = Paragraph::new(text).block(Block::default().borders(Borders::ALL).title("Details"));
+    let border_style = if app.focus == Focus::Detail {
+        Style::default().fg(Color::Cyan)
+    } else {
+        Style::default()
+    };
+
+    let p = Paragraph::new(text).block(Block::default().borders(Borders::ALL).title("Details").border_style(border_style));
     f.render_widget(p, area);
 }
 
