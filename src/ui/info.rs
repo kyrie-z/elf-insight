@@ -118,17 +118,45 @@ fn render_segment(app: &App, index: usize) -> Vec<String> {
     if index >= app.data.segments.len() {
         return vec!["Segment not found".into()];
     }
-    let s = &app.data.segments[index];
-    vec![
-        format!("Type:       {}", s.ty),
-        format!("Flags:      {}", s.flags),
-        format!("Offset:     0x{:x}", s.offset),
-        format!("VirtAddr:   0x{:016x}", s.vaddr),
-        format!("PhysAddr:   0x{:016x}", s.paddr),
-        format!("FileSiz:    0x{:x} ({} bytes)", s.filesz, s.filesz),
-        format!("MemSiz:     0x{:x} ({} bytes)", s.memsz, s.memsz),
-        format!("Align:      0x{:x}", s.align),
-    ]
+    let seg = &app.data.segments[index];
+    let mut lines = vec![
+        format!("Type:       {}", seg.ty),
+        format!("Flags:      {}", seg.flags),
+        format!("VirtAddr:   0x{:016x}", seg.vaddr),
+        format!("VirtSize:   0x{:x} ({} bytes)", seg.memsz, seg.memsz),
+        format!("File offset: 0x{:x}", seg.offset),
+        format!("File size:   0x{:x} ({} bytes)", seg.filesz, seg.filesz),
+        format!("Align:      0x{:x}", seg.align),
+        String::new(),
+    ];
+
+    // Find sections mapped into this segment
+    let mut mapped: Vec<&crate::elf::parser::SectionInfo> = app
+        .data
+        .sections
+        .iter()
+        .filter(|s| {
+            seg.memsz > 0
+                && s.addr >= seg.vaddr
+                && s.addr <= seg.vaddr + seg.memsz
+                && s.size > 0
+                && s.addr > 0
+        })
+        .collect();
+    mapped.sort_by_key(|s| s.addr);
+
+    if mapped.is_empty() {
+        lines.push(format!("No sections mapped to this segment"));
+    } else {
+        lines.push(format!("Mapped sections:"));
+        for s in mapped {
+            lines.push(format!(
+                "  [{:2}] {:<20} 0x{:08x}-0x{:08x}",
+                s.index, s.name, s.addr, s.addr + s.size
+            ));
+        }
+    }
+    lines
 }
 
 fn render_section_body_info(app: &App, index: usize) -> Vec<String> {
