@@ -19,6 +19,7 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         Some(TreeNodeType::ElfHeader) => render_elf_header(app),
         Some(TreeNodeType::ProgramHeaders) => render_program_headers(app),
         Some(TreeNodeType::SectionHeaders) => render_section_headers(app),
+        Some(TreeNodeType::Dynamic) => render_dynamic(app),
         Some(TreeNodeType::SectionHeader { index }) => render_section_header(app, index),
         Some(TreeNodeType::SectionBody { index }) => render_section_body_info(app, index),
         Some(TreeNodeType::Segment { index }) => render_segment(app, index),
@@ -56,6 +57,24 @@ fn render_elf_header(app: &App) -> Vec<String> {
         format!("EH size:       {} bytes", d.ehsize),
         format!("SH strndx:     {}", d.shstrndx),
     ]
+}
+
+fn render_dynamic(app: &App) -> Vec<String> {
+    let d = &app.data;
+    if d.dynamic.is_empty() {
+        return vec!["No dynamic entries".into()];
+    }
+    let mut lines = vec![
+        format!("Dynamic entries: {} total", d.dynamic.len()),
+        format!("{:<4} {:<20} {:<20}", "Idx", "Tag", "Value"),
+    ];
+    for (i, entry) in d.dynamic.iter().enumerate() {
+        lines.push(format!(
+            "{:<4} {:<20} {:<20}",
+            i, entry.tag, entry.value
+        ));
+    }
+    lines
 }
 
 fn render_program_headers(app: &App) -> Vec<String> {

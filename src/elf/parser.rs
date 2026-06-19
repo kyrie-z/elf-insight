@@ -72,6 +72,15 @@ pub struct ElfData {
     pub sections: Vec<SectionInfo>,
     pub segments: Vec<SegmentInfo>,
     pub symbols: Vec<SymbolInfo>,
+    pub dynamic: Vec<DynamicEntry>,
+}
+
+#[derive(Debug, Clone)]
+pub struct DynamicEntry {
+    pub tag: String,
+    pub value: String,
+    pub raw_tag: u64,
+    pub raw_value: u64,
 }
 
 pub fn parse_elf<P: AsRef<Path>>(path: P) -> Result<ElfData, Box<dyn std::error::Error>> {
@@ -186,6 +195,9 @@ pub fn parse_elf<P: AsRef<Path>>(path: P) -> Result<ElfData, Box<dyn std::error:
         (sections, segments, symbols, header_fields, is_pie)
     };
 
+    // Parse .dynamic entries
+    let dynamic = parse_dynamic_entries(&raw_bytes, &sections, &segments);
+
     Ok(ElfData {
         file_path: path.to_string_lossy().to_string(),
         raw_bytes,
@@ -210,6 +222,7 @@ pub fn parse_elf<P: AsRef<Path>>(path: P) -> Result<ElfData, Box<dyn std::error:
         sections,
         segments,
         symbols,
+        dynamic,
     })
 }
 
@@ -334,6 +347,110 @@ fn sym_vis_to_str(vis: u8) -> String {
         goblin::elf::sym::STV_HIDDEN => "HIDDEN".into(),
         goblin::elf::sym::STV_PROTECTED => "PROTECTED".into(),
         _ => format!("0x{:x}", vis),
+    }
+}
+
+fn parse_dynamic_entries(
+    raw_bytes: &[u8],
+    sections: &[SectionInfo],
+    segments: &[SegmentInfo],
+) -> Vec<DynamicEntry> {
+    // Find .dynamic section
+    let dynamic_section = sections.iter().find(|s| s.name == ".dynamic");
+    match dynamic_section {
+        Some(section) if !section.data.is_empty() => {
+            parse_dynamic_from_data(&section.data)
+        }
+        _ => {
+            // Try Dynamic segment
+            if let Some(seg) = segments.iter().find(|s| s.ty == "DYNAMIC") {
+                let start = seg.offset as usize;
+                let end = (seg.offset + seg.filesz) as usize;
+                if end <= raw_bytes.len() {
+                    parse_dynamic_from_data(&raw_bytes[start..end])
+                } else {
+                    Vec::new()
+                }
+            } else {
+                Vec::new()
+            }
+        }
+    }
+}
+
+fn parse_dynamic_from_data(data: &[u8]) -> Vec<DynamicEntry> {
+    let mut entries = Vec::new();
+    let mut offset = 0;
+    let entry_size = 16; // Elf64_Dyn is 16 bytes (tag: u64, value: u64)
+
+    while offset + entry_size <= data.len() {
+        let tag = u64::from_ne_bytes([
+            data[offset], data[offset+1], data[offset+2], data[offset+3],
+            data[offset+4], data[offset+5], data[offset+6], data[offset+7],
+        ]);
+        let value = u64::from_ne_bytes([
+            data[offset+8], data[offset+9], data[offset+10], data[offset+11],
+            data[offset+12], data[offset+13], data[offset+14], data[offset+15],
+        ]);
+
+        if tag == 0 {
+            break; // DT_NULL terminates
+        }
+
+        entries.push(DynamicEntry {
+            tag: dynamic_tag_to_str(tag),
+            value: format!("0x{:x}", value),
+            raw_tag: tag,
+            raw_value: value,
+        });
+
+        offset += entry_size;
+    }
+
+    entries
+}
+
+fn dynamic_tag_to_str(tag: u64) -> String {
+    match tag {
+        0 => "NULL".into(),
+        1 => "NEEDED".into(),
+        2 => "PLTRELSZ".into(),
+        3 => "PLTGOT".into(),
+        4 => "HASH".into(),
+        5 => "STRTAB".into(),
+        6 => "SYMTAB".into(),
+        7 => "RELA".into(),
+        8 => "RELASZ".into(),
+        9 => "RELAENT".into(),
+        10 => "STRSZ".into(),
+        11 => "SYMENT".into(),
+        12 => "INIT".into(),
+        13 => "FINI".into(),
+        14 => "SONAME".into(),
+        15 => "RPATH".into(),
+        16 => "SYMBOLIC".into(),
+        17 => "REL".into(),
+        18 => "RELSZ".into(),
+        19 => "RELENT".into(),
+        20 => "PLTREL".into(),
+        21 => "DEBUG".into(),
+        22 => "TEXTREL".into(),
+        23 => "JMPREL".into(),
+        24 => "BIND_NOW".into(),
+        25 => "INIT_ARRAY".into(),
+        26 => "FINI_ARRAY".into(),
+        27 => "INIT_ARRAYSZ".into(),
+        28 => "FINI_ARRAYSZ".into(),
+        29 => "RUNPATH".into(),
+        30 => "FLAGS".into(),
+        0x6ffffef5 => "GNU_HASH".into(),
+        0x6ffffef0 => "GNU_CONFLICT".into(),
+        0x6ffffeef => "GNU_CONFLICTSZ".into(),
+        0x6ffffef3 => "GNU_PRELINKED".into(),
+        0x6ffffdf0 => "VERSYM".into(),
+        0x6ffffffe => "VERNEED".into(),
+        0x6fffffff => "VERNEEDNUM".into(),
+        _ => format!("0x{:x}", tag),
     }
 }
 

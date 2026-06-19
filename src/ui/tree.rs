@@ -9,6 +9,7 @@ pub enum TreeNodeType {
     ElfHeader,
     ProgramHeaders,
     SectionHeaders,
+    Dynamic,
     SectionsGroup,
     SectionHeader { index: usize },
     SectionBody { index: usize },
