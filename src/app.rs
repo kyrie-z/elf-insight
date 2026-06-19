@@ -188,6 +188,10 @@ fn run_event_loop(
     while !app.should_quit {
         terminal.draw(|f| render(f, app))?;
         handle_events(app)?;
+
+        if app.search.no_matches_timer > 0 {
+            app.search.no_matches_timer -= 1;
+        }
     }
     Ok(())
 }
