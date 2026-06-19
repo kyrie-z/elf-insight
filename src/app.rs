@@ -36,6 +36,7 @@ pub struct App {
     pub current_view: DetailView,
     pub focus: Focus,
     pub should_quit: bool,
+    pub show_help: bool,
     pub disasm_cache: Option<DisasmResult>,
     pub current_disasm_section: Option<usize>,
 }
@@ -62,6 +63,7 @@ impl App {
             current_view: DetailView::Overview,
             focus: Focus::Tree,
             should_quit: false,
+            show_help: false,
             disasm_cache: None,
             current_disasm_section: None,
         }
@@ -205,6 +207,10 @@ fn render(f: &mut Frame, app: &mut App) {
     crate::ui::tree::render(f, app, chunks[0]);
     crate::ui::render_detail(f, app, chunks[1]);
     crate::ui::search::render(f, app, f.area());
+
+    if app.show_help {
+        crate::ui::help::render(f, f.area());
+    }
 }
 
 fn handle_events(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
@@ -219,6 +225,16 @@ fn handle_events(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn handle_key(app: &mut App, key: KeyCode) {
+    if app.show_help {
+        match key {
+            KeyCode::Esc | KeyCode::Char('?') | KeyCode::Char('h') => {
+                app.show_help = false;
+            }
+            _ => {}
+        }
+        return;
+    }
+
     if app.search.active {
         match key {
             KeyCode::Esc => {
@@ -245,6 +261,9 @@ fn handle_key(app: &mut App, key: KeyCode) {
 
     match key {
         KeyCode::Char('q') => app.should_quit = true,
+        KeyCode::Char('?') | KeyCode::Char('h') => {
+            app.show_help = true;
+        }
         KeyCode::Char('/') => {
             app.search.active = true;
             app.search.input.clear();

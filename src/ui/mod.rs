@@ -5,6 +5,7 @@ pub mod hexdump;
 pub mod disasm;
 pub mod strings;
 pub mod search;
+pub mod help;
 
 use crate::app::{App, DetailView};
 use ratatui::prelude::*;
