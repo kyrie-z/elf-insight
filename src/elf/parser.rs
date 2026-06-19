@@ -195,8 +195,11 @@ pub fn parse_elf<P: AsRef<Path>>(path: P) -> Result<ElfData, Box<dyn std::error:
         (sections, segments, symbols, header_fields, is_pie)
     };
 
-    // Parse .dynamic entries
-    let dynamic = parse_dynamic_entries(&raw_bytes, &sections, &segments);
+    // Parse .dynamic entries using goblin
+    let dynamic = match &sections.iter().find(|s| s.name == ".dynamic") {
+        Some(s) if !s.data.is_empty() => parse_dynamic_from_data(&s.data),
+        _ => Vec::new(),
+    };
 
     Ok(ElfData {
         file_path: path.to_string_lossy().to_string(),
@@ -350,51 +353,18 @@ fn sym_vis_to_str(vis: u8) -> String {
     }
 }
 
-fn parse_dynamic_entries(
-    raw_bytes: &[u8],
-    sections: &[SectionInfo],
-    segments: &[SegmentInfo],
-) -> Vec<DynamicEntry> {
-    // Find .dynamic section
-    let dynamic_section = sections.iter().find(|s| s.name == ".dynamic");
-    match dynamic_section {
-        Some(section) if !section.data.is_empty() => {
-            parse_dynamic_from_data(&section.data)
-        }
-        _ => {
-            // Try Dynamic segment
-            if let Some(seg) = segments.iter().find(|s| s.ty == "DYNAMIC") {
-                let start = seg.offset as usize;
-                let end = (seg.offset + seg.filesz) as usize;
-                if end <= raw_bytes.len() {
-                    parse_dynamic_from_data(&raw_bytes[start..end])
-                } else {
-                    Vec::new()
-                }
-            } else {
-                Vec::new()
-            }
-        }
-    }
-}
-
 fn parse_dynamic_from_data(data: &[u8]) -> Vec<DynamicEntry> {
     let mut entries = Vec::new();
-    let mut offset = 0;
-    let entry_size = 16; // Elf64_Dyn is 16 bytes (tag: u64, value: u64)
 
-    while offset + entry_size <= data.len() {
-        let tag = u64::from_ne_bytes([
-            data[offset], data[offset+1], data[offset+2], data[offset+3],
-            data[offset+4], data[offset+5], data[offset+6], data[offset+7],
-        ]);
-        let value = u64::from_ne_bytes([
-            data[offset+8], data[offset+9], data[offset+10], data[offset+11],
-            data[offset+12], data[offset+13], data[offset+14], data[offset+15],
-        ]);
+    for chunk in data.chunks(16) {
+        if chunk.len() < 16 {
+            break;
+        }
+        let tag = u64::from_le_bytes(chunk[0..8].try_into().unwrap());
+        let value = u64::from_le_bytes(chunk[8..16].try_into().unwrap());
 
         if tag == 0 {
-            break; // DT_NULL terminates
+            break;
         }
 
         entries.push(DynamicEntry {
@@ -403,8 +373,6 @@ fn parse_dynamic_from_data(data: &[u8]) -> Vec<DynamicEntry> {
             raw_tag: tag,
             raw_value: value,
         });
-
-        offset += entry_size;
     }
 
     entries

@@ -130,48 +130,61 @@ impl TreeState {
             if !node.children.is_empty() {
                 let node_type = node.node_type.clone();
                 let node_label = node.label.clone();
-                for top_node in &mut self.nodes {
-                    if top_node.node_type == node_type && top_node.label == node_label {
-                        top_node.expanded = !top_node.expanded;
-                        self.rebuild_flat_list();
-                        self.selected_node = self.node_at_index(idx);
-                        return;
-                    }
-                    for child in &mut top_node.children {
-                        if child.node_type == node_type && child.label == node_label {
-                            child.expanded = !child.expanded;
-                            self.rebuild_flat_list();
-                            self.selected_node = self.node_at_index(idx);
-                            return;
-                        }
-                    }
-                }
+                let expand = !node.expanded;
+                drop(flat);
+                self.toggle_node(node_type, node_label, expand);
+                self.selected_node = self.node_at_index(idx);
             }
         }
     }
 
     pub fn collapse_current(&mut self) {
+        let depth = {
+            let flat = self.collect_flat();
+            let idx = self.list_state.selected().unwrap_or(0);
+            if let Some((node, d, _)) = flat.get(idx) {
+                // If node itself is a group and expanded, collapse it
+                if !node.children.is_empty() && node.expanded {
+                    let node_type = node.node_type.clone();
+                    let node_label = node.label.clone();
+                    self.toggle_node(node_type, node_label, false);
+                    return;
+                }
+                *d
+            } else {
+                return;
+            }
+        };
+
+        // If child, collapse parent
         let flat = self.collect_flat();
         let idx = self.list_state.selected().unwrap_or(0);
-        if let Some((node, _, _)) = flat.get(idx) {
-            if !node.children.is_empty() && node.expanded {
-                let node_type = node.node_type.clone();
-                let node_label = node.label.clone();
-                for top_node in &mut self.nodes {
-                    if top_node.node_type == node_type && top_node.label == node_label {
-                        top_node.expanded = false;
-                        self.rebuild_flat_list();
-                        self.selected_node = self.node_at_index(idx);
-                        return;
-                    }
-                    for child in &mut top_node.children {
-                        if child.node_type == node_type && child.label == node_label {
-                            child.expanded = false;
-                            self.rebuild_flat_list();
-                            self.selected_node = self.node_at_index(idx);
-                            return;
-                        }
-                    }
+        if depth > 0 {
+            if let Some(pi) = flat[..idx].iter().rposition(|(_, d, _)| *d == 0) {
+                if let Some((parent_node, _, _)) = flat.get(pi) {
+                    let pt = parent_node.node_type.clone();
+                    let pl = parent_node.label.clone();
+                    drop(flat);
+                    self.toggle_node(pt, pl, false);
+                    self.list_state.select(Some(pi));
+                    self.selected_node = self.node_at_index(pi);
+                }
+            }
+        }
+    }
+
+    fn toggle_node(&mut self, node_type: TreeNodeType, label: String, expand: bool) {
+        for top_node in &mut self.nodes {
+            if top_node.node_type == node_type && top_node.label == label {
+                top_node.expanded = expand;
+                self.rebuild_flat_list();
+                return;
+            }
+            for child in &mut top_node.children {
+                if child.node_type == node_type && child.label == label {
+                    child.expanded = expand;
+                    self.rebuild_flat_list();
+                    return;
                 }
             }
         }
