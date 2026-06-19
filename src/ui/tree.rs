@@ -5,6 +5,7 @@ use ratatui::widgets::{Block, Borders, List, ListItem, ListState};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TreeNodeType {
     Overview,
+    LayoutMap,
     ElfHeader,
     SectionsGroup,
     SectionHeader { index: usize },

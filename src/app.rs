@@ -18,6 +18,7 @@ use std::io;
 
 pub enum DetailView {
     Overview,
+    LayoutMap,
     StructuredInfo,
     Hexdump,
     Disassembly,
@@ -78,6 +79,14 @@ fn build_tree(data: &ElfData) -> Vec<TreeNode> {
     nodes.push(TreeNode {
         label: "Overview".into(),
         node_type: TreeNodeType::Overview,
+        depth: 0,
+        children: vec![],
+        expanded: true,
+    });
+
+    nodes.push(TreeNode {
+        label: "Layout Map".into(),
+        node_type: TreeNodeType::LayoutMap,
         depth: 0,
         children: vec![],
         expanded: true,
@@ -241,7 +250,6 @@ fn handle_mouse(app: &mut App, mouse: crossterm::event::MouseEvent) {
             scroll_detail(app, -3);
         }
         MouseEventKind::Down(_) => {
-            // Click on right side (column > 30%) switches focus to detail
             app.focus = Focus::Detail;
         }
         _ => {}
@@ -249,24 +257,32 @@ fn handle_mouse(app: &mut App, mouse: crossterm::event::MouseEvent) {
 }
 
 fn scroll_detail(app: &mut App, delta: isize) {
+    if matches!(app.current_view, DetailView::LayoutMap) {
+        return;
+    }
+    let scroll = match app.current_view {
+        DetailView::Overview => &mut app.overview.scroll,
+        DetailView::StructuredInfo => &mut app.info.scroll,
+        DetailView::Hexdump => &mut app.hexdump.scroll,
+        DetailView::Disassembly => &mut app.disasm.scroll,
+        DetailView::Strings => &mut app.strings.scroll,
+        DetailView::LayoutMap => return,
+    };
     if delta > 0 {
-        let d = delta as usize;
-        match app.current_view {
-            DetailView::Overview => app.overview.scroll += d,
-            DetailView::Hexdump => app.hexdump.scroll += d,
-            DetailView::Disassembly => app.disasm.scroll += d,
-            DetailView::Strings => app.strings.scroll += d,
-            DetailView::StructuredInfo => app.info.scroll += d,
-        }
+        *scroll += delta as usize;
     } else {
-        let d = (-delta) as usize;
-        match app.current_view {
-            DetailView::Overview => app.overview.scroll = app.overview.scroll.saturating_sub(d),
-            DetailView::Hexdump => app.hexdump.scroll = app.hexdump.scroll.saturating_sub(d),
-            DetailView::Disassembly => app.disasm.scroll = app.disasm.scroll.saturating_sub(d),
-            DetailView::Strings => app.strings.scroll = app.strings.scroll.saturating_sub(d),
-            DetailView::StructuredInfo => app.info.scroll = app.info.scroll.saturating_sub(d),
-        }
+        *scroll = scroll.saturating_sub((-delta) as usize);
+    }
+}
+
+fn get_scroll(app: &mut App) -> &mut usize {
+    match app.current_view {
+        DetailView::Overview => &mut app.overview.scroll,
+        DetailView::StructuredInfo => &mut app.info.scroll,
+        DetailView::Hexdump => &mut app.hexdump.scroll,
+        DetailView::Disassembly => &mut app.disasm.scroll,
+        DetailView::Strings => &mut app.strings.scroll,
+        DetailView::LayoutMap => &mut app.overview.scroll, // dummy, won't be used
     }
 }
 
@@ -331,29 +347,20 @@ fn handle_key(app: &mut App, key: KeyCode) {
             }
         }
         KeyCode::Char('G') => {
-            if app.focus == Focus::Detail {
-                match app.current_view {
-                    DetailView::Overview => app.overview.scroll = usize::MAX,
-                    DetailView::Hexdump => app.hexdump.scroll = usize::MAX,
-                    DetailView::Disassembly => app.disasm.scroll = usize::MAX,
-                    DetailView::Strings => app.strings.scroll = usize::MAX,
-                    DetailView::StructuredInfo => app.info.scroll = usize::MAX,
-                }
+            if app.focus == Focus::Detail && !matches!(app.current_view, DetailView::LayoutMap) {
+                *get_scroll(app) = usize::MAX;
             }
         }
         KeyCode::Char('g') => {
             if app.focus == Focus::Detail {
                 if app.pending_g {
                     app.pending_g = false;
-                    match app.current_view {
-                        DetailView::Overview => app.overview.scroll = 0,
-                        DetailView::Hexdump => {
-                            app.hexdump.scroll = 0;
-                            app.hexdump.cursor_offset = 0;
-                        }
-                        DetailView::Disassembly => app.disasm.scroll = 0,
-                        DetailView::Strings => app.strings.scroll = 0,
-                        DetailView::StructuredInfo => app.info.scroll = 0,
+                    if matches!(app.current_view, DetailView::LayoutMap) {
+                        return;
+                    }
+                    *get_scroll(app) = 0;
+                    if matches!(app.current_view, DetailView::Hexdump) {
+                        app.hexdump.cursor_offset = 0;
                     }
                 } else {
                     app.pending_g = true;
@@ -362,28 +369,15 @@ fn handle_key(app: &mut App, key: KeyCode) {
         }
         KeyCode::Char('u') => {
             app.pending_g = false;
-            if app.focus == Focus::Detail {
-                let visible = 10;
-                match app.current_view {
-                    DetailView::Overview => app.overview.scroll = app.overview.scroll.saturating_sub(visible),
-                    DetailView::Hexdump => app.hexdump.scroll = app.hexdump.scroll.saturating_sub(visible),
-                    DetailView::Disassembly => app.disasm.scroll = app.disasm.scroll.saturating_sub(visible),
-                    DetailView::Strings => app.strings.scroll = app.strings.scroll.saturating_sub(visible),
-                    DetailView::StructuredInfo => app.info.scroll = app.info.scroll.saturating_sub(visible),
-                }
+            if app.focus == Focus::Detail && !matches!(app.current_view, DetailView::LayoutMap) {
+                let s = get_scroll(app);
+                *s = s.saturating_sub(10);
             }
         }
         KeyCode::Char('d') => {
             app.pending_g = false;
-            if app.focus == Focus::Detail {
-                let visible = 10;
-                match app.current_view {
-                    DetailView::Overview => app.overview.scroll += visible,
-                    DetailView::Hexdump => app.hexdump.scroll += visible,
-                    DetailView::Disassembly => app.disasm.scroll += visible,
-                    DetailView::Strings => app.strings.scroll += visible,
-                    DetailView::StructuredInfo => app.info.scroll += visible,
-                }
+            if app.focus == Focus::Detail && !matches!(app.current_view, DetailView::LayoutMap) {
+                *get_scroll(app) += 10;
             }
         }
         KeyCode::Char('?') => {
@@ -426,10 +420,10 @@ fn handle_key(app: &mut App, key: KeyCode) {
                             app.hexdump.scroll = app.hexdump.scroll.saturating_sub(1);
                         }
                     }
-                    DetailView::Overview => app.overview.scroll = app.overview.scroll.saturating_sub(1),
-                    DetailView::Disassembly => app.disasm.scroll = app.disasm.scroll.saturating_sub(1),
-                    DetailView::Strings => app.strings.scroll = app.strings.scroll.saturating_sub(1),
-                    DetailView::StructuredInfo => app.info.scroll = app.info.scroll.saturating_sub(1),
+                    DetailView::LayoutMap => {}
+                    _ => {
+                        *get_scroll(app) = get_scroll(app).saturating_sub(1);
+                    }
                 }
             }
         }
@@ -447,10 +441,10 @@ fn handle_key(app: &mut App, key: KeyCode) {
                             app.hexdump.scroll += 1;
                         }
                     }
-                    DetailView::Overview => app.overview.scroll += 1,
-                    DetailView::Disassembly => app.disasm.scroll += 1,
-                    DetailView::Strings => app.strings.scroll += 1,
-                    DetailView::StructuredInfo => app.info.scroll += 1,
+                    DetailView::LayoutMap => {}
+                    _ => {
+                        *get_scroll(app) += 1;
+                    }
                 }
             }
         }
@@ -491,57 +485,24 @@ fn handle_key(app: &mut App, key: KeyCode) {
                 app.tree.toggle_expand();
             }
         }
-        KeyCode::Char('g') => {
-            if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Hexdump) {
-                app.hexdump.goto_mode = true;
-                app.hexdump.goto_input.clear();
-                app.focus = Focus::Search;
-            }
-        }
         KeyCode::PageUp => {
-            if app.focus == Focus::Detail {
-                let visible = 10;
-                match app.current_view {
-                    DetailView::Overview => app.overview.scroll = app.overview.scroll.saturating_sub(visible),
-                    DetailView::Hexdump => app.hexdump.scroll = app.hexdump.scroll.saturating_sub(visible),
-                    DetailView::Disassembly => app.disasm.scroll = app.disasm.scroll.saturating_sub(visible),
-                    DetailView::Strings => app.strings.scroll = app.strings.scroll.saturating_sub(visible),
-                    DetailView::StructuredInfo => app.info.scroll = app.info.scroll.saturating_sub(visible),
-                }
+            if app.focus == Focus::Detail && !matches!(app.current_view, DetailView::LayoutMap) {
+                *get_scroll(app) = get_scroll(app).saturating_sub(10);
             }
         }
         KeyCode::PageDown => {
-            if app.focus == Focus::Detail {
-                let visible = 10;
-                match app.current_view {
-                    DetailView::Overview => app.overview.scroll += visible,
-                    DetailView::Hexdump => app.hexdump.scroll += visible,
-                    DetailView::Disassembly => app.disasm.scroll += visible,
-                    DetailView::Strings => app.strings.scroll += visible,
-                    DetailView::StructuredInfo => app.info.scroll += visible,
-                }
+            if app.focus == Focus::Detail && !matches!(app.current_view, DetailView::LayoutMap) {
+                *get_scroll(app) += 10;
             }
         }
         KeyCode::Home => {
-            if app.focus == Focus::Detail {
-                match app.current_view {
-                    DetailView::Overview => app.overview.scroll = 0,
-                    DetailView::Hexdump => app.hexdump.scroll = 0,
-                    DetailView::Disassembly => app.disasm.scroll = 0,
-                    DetailView::Strings => app.strings.scroll = 0,
-                    DetailView::StructuredInfo => app.info.scroll = 0,
-                }
+            if app.focus == Focus::Detail && !matches!(app.current_view, DetailView::LayoutMap) {
+                *get_scroll(app) = 0;
             }
         }
         KeyCode::End => {
-            if app.focus == Focus::Detail {
-                match app.current_view {
-                    DetailView::Overview => app.overview.scroll = usize::MAX,
-                    DetailView::Hexdump => app.hexdump.scroll = usize::MAX,
-                    DetailView::Disassembly => app.disasm.scroll = usize::MAX,
-                    DetailView::Strings => app.strings.scroll = usize::MAX,
-                    DetailView::StructuredInfo => app.info.scroll = usize::MAX,
-                }
+            if app.focus == Focus::Detail && !matches!(app.current_view, DetailView::LayoutMap) {
+                *get_scroll(app) = usize::MAX;
             }
         }
         _ => {
@@ -554,6 +515,7 @@ fn update_view(app: &mut App) {
     if let Some(ref node_type) = app.tree.selected_node {
         app.current_view = match node_type {
             TreeNodeType::Overview => DetailView::Overview,
+            TreeNodeType::LayoutMap => DetailView::LayoutMap,
             TreeNodeType::ElfHeader => DetailView::StructuredInfo,
             TreeNodeType::SectionsGroup => DetailView::Overview,
             TreeNodeType::SectionHeader { .. } => DetailView::StructuredInfo,

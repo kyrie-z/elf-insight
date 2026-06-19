@@ -56,6 +56,7 @@ pub struct ElfData {
     pub os_abi: String,
     pub abi_version: u8,
     pub elf_type: String,
+    pub is_pie: bool,
     pub machine: String,
     pub version: u32,
     pub entry: u64,
@@ -77,7 +78,7 @@ pub fn parse_elf<P: AsRef<Path>>(path: P) -> Result<ElfData, Box<dyn std::error:
     let path = path.as_ref();
     let raw_bytes = fs::read(path)?;
 
-    let (sections, segments, symbols, header_fields) = {
+    let (sections, segments, symbols, header_fields, is_pie) = {
         let elf = Elf::parse(&raw_bytes)?;
 
         let sections: Vec<SectionInfo> = elf
@@ -161,6 +162,8 @@ pub fn parse_elf<P: AsRef<Path>>(path: P) -> Result<ElfData, Box<dyn std::error:
             .collect();
 
         let h = &elf.header;
+        let is_pie = elf.header.e_type == goblin::elf::header::ET_DYN
+            && elf.program_headers.iter().any(|ph| ph.p_type == goblin::elf::program_header::PT_INTERP);
         let header_fields = (
             h.e_ident[goblin::elf::header::EI_CLASS],
             h.e_ident[goblin::elf::header::EI_DATA],
@@ -180,7 +183,7 @@ pub fn parse_elf<P: AsRef<Path>>(path: P) -> Result<ElfData, Box<dyn std::error:
             h.e_shnum,
             h.e_shstrndx,
         );
-        (sections, segments, symbols, header_fields)
+        (sections, segments, symbols, header_fields, is_pie)
     };
 
     Ok(ElfData {
@@ -191,7 +194,8 @@ pub fn parse_elf<P: AsRef<Path>>(path: P) -> Result<ElfData, Box<dyn std::error:
         os_abi: header_fields.2,
         abi_version: header_fields.3,
         elf_type: header_fields.4,
-        machine: header_fields.5,
+        is_pie,
+            machine: header_fields.5,
         version: header_fields.6,
         entry: header_fields.7,
         phoff: header_fields.8,

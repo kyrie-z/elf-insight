@@ -38,7 +38,12 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     ));
     lines.push(format!("  Version: {} (current)", data.version));
     lines.push(format!("  OS/ABI:  {}", data.os_abi));
-    lines.push(format!("  Type:    {}", data.elf_type));
+    let type_display = if data.is_pie {
+        format!("{} (PIE executable)", data.elf_type)
+    } else {
+        data.elf_type.clone()
+    };
+    lines.push(format!("  Type:    {}", type_display));
     lines.push(format!("  Machine: {}", data.machine));
     lines.push(format!("  Entry:   0x{:x}", data.entry));
     lines.push(format!(
@@ -54,16 +59,16 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
 
     // Section Headers
     lines.push(format!(
-        "Section Headers: [Nr] Name                 Type        Address  Offset   Size     Flags"
+        "[Nr] Name                  Type       Address    Offset    Size      Flags"
     ));
     for s in &data.sections {
         let name = if s.name.len() > 20 {
-            format!("{}...", &s.name[..17])
+            format!("{:.20}", s.name)
         } else {
             format!("{:20}", s.name)
         };
         lines.push(format!(
-            "  [{:2}] {} {:10} 0x{:08x} 0x{:06x} 0x{:06x} {:3}",
+            "[{:2}] {} {:10} 0x{:08x} 0x{:06x} 0x{:06x} {:3}",
             s.index, name, s.ty, s.addr, s.offset, s.size, s.flags
         ));
     }
