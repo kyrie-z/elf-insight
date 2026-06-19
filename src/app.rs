@@ -124,16 +124,6 @@ fn build_tree(data: &ElfData) -> Vec<TreeNode> {
         expanded: true,
     });
 
-    if !data.dynamic.is_empty() {
-        nodes.push(TreeNode {
-            label: format!("Dynamic ({} entries)", data.dynamic.len()),
-            node_type: TreeNodeType::Dynamic,
-            depth: 0,
-            children: vec![],
-            expanded: true,
-        });
-    }
-
     nodes.push(TreeNode {
         label: format!("Section Headers (0x{:x}-0x{:x})", data.shoff, data.shoff + data.shnum as u64 * data.shentsize as u64),
         node_type: TreeNodeType::SectionHeaders,
@@ -661,7 +651,6 @@ fn update_view(app: &mut App) {
             TreeNodeType::LayoutMap => DetailView::LayoutMap,
             TreeNodeType::ElfHeader => DetailView::StructuredInfo,
             TreeNodeType::ProgramHeaders => DetailView::StructuredInfo,
-            TreeNodeType::Dynamic => DetailView::StructuredInfo,
             TreeNodeType::SectionHeaders => DetailView::StructuredInfo,
             TreeNodeType::SectionsGroup => DetailView::Overview,
             TreeNodeType::SectionHeader { .. } => DetailView::StructuredInfo,

@@ -140,11 +140,10 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     let sector_end = section.addr + section.size;
 
     let title = format!(
-        "{} - 0x{:x}-0x{:x}  [{:>3}%]  cursor: 0x{:x}",
+        "{} - 0x{:x}-0x{:x}  cursor: 0x{:x}",
         section.name,
         section.addr,
         sector_end,
-        (app.hexdump.scroll as f64 / max_scroll.max(1) as f64 * 100.0) as u32,
         cursor_addr
     );
 

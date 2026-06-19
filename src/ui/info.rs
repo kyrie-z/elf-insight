@@ -19,9 +19,15 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         Some(TreeNodeType::ElfHeader) => render_elf_header(app),
         Some(TreeNodeType::ProgramHeaders) => render_program_headers(app),
         Some(TreeNodeType::SectionHeaders) => render_section_headers(app),
-        Some(TreeNodeType::Dynamic) => render_dynamic(app),
         Some(TreeNodeType::SectionHeader { index }) => render_section_header(app, index),
-        Some(TreeNodeType::SectionBody { index }) => render_section_body_info(app, index),
+        Some(TreeNodeType::SectionBody { index }) => {
+    let s = &app.data.sections[index];
+    if s.name == ".dynamic" && !app.data.dynamic.is_empty() {
+        render_dynamic(app)
+    } else {
+        render_section_body_info(app, index)
+    }
+},
         Some(TreeNodeType::Segment { index }) => render_segment(app, index),
         Some(TreeNodeType::Symbol { index }) => render_symbol(app, index),
         _ => vec!["Select a node to view details".into()],

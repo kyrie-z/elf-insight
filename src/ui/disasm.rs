@@ -125,12 +125,7 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         } else {
             func.start_addr
         };
-        let pct = if func.end_idx > func.start_idx {
-            (app.disasm.scroll as f64 / (func.end_idx - func.start_idx) as f64 * 100.0) as u32
-        } else {
-            0
-        };
-        format!("{} (0x{:x}-0x{:x}) [{:>3}%] 0x{:x}", func.name, func.start_addr, func.end_addr, pct, cursor_addr)
+        format!("{} (0x{:x}-0x{:x}) 0x{:x}", func.name, func.start_addr, func.end_addr, cursor_addr)
     } else {
         "Disassembly".into()
     };
