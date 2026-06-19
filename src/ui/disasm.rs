@@ -1,7 +1,7 @@
 use crate::app::{App, DisasmSubFocus, Focus};
 use crate::ui::search;
 use ratatui::prelude::*;
-use ratatui::text::Line;
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
 
 pub struct DisasmState {
@@ -75,6 +75,7 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     // Instructions
     let query = &app.search.query;
     let hl = Style::default().fg(Color::Yellow).bg(Color::Rgb(80, 80, 0));
+    let cursor_style = Style::default().fg(Color::Black).bg(Color::Rgb(200, 200, 100));
 
     let mut lines: Vec<Line> = Vec::new();
     if let Some(func) = disasm.functions.get(app.disasm.selected_function) {
@@ -88,19 +89,26 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
 
         let start = func.start_idx + app.disasm.scroll;
         let end = (start + visible_rows).min(func.end_idx);
+        let cursor_idx = func.start_idx + app.disasm.scroll;
 
-        for insn in &disasm.all_instructions[start..end] {
+        for (i, insn) in disasm.all_instructions[start..end].iter().enumerate() {
+            let idx = start + i;
             let bytes_str: String = insn
                 .bytes
                 .iter()
                 .map(|b| format!("{:02x}", b))
                 .collect::<Vec<_>>()
                 .join(" ");
-            let line = format!(
+            let line_str = format!(
                 "0x{:08x}: {:20}  {} {}",
                 insn.address, bytes_str, insn.mnemonic, insn.operands
             );
-            lines.push(search::highlight_line(&line, query, hl));
+            let line = search::highlight_line(&line_str, query, hl);
+            if idx == cursor_idx {
+                lines.push(Line::from(vec![Span::styled(line.to_string(), cursor_style)]));
+            } else {
+                lines.push(line);
+            }
         }
 
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)

@@ -1,5 +1,6 @@
 use crate::app::{App, Focus};
 use ratatui::prelude::*;
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 
 const BYTES_PER_ROW: usize = 16;
@@ -54,10 +55,6 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     let visible_rows = area.height.saturating_sub(3) as usize;
     let max_scroll = total_rows.saturating_sub(visible_rows);
 
-    if app.hexdump.scroll > max_scroll {
-        app.hexdump.scroll = max_scroll;
-    }
-
     if app.hexdump.cursor_offset >= data.len() {
         app.hexdump.cursor_offset = data.len().saturating_sub(1);
     }
@@ -73,14 +70,17 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         app.hexdump.scroll = max_scroll;
     }
 
-    let mut lines = Vec::new();
+    let cursor_style = Style::default().fg(Color::Black).bg(Color::Rgb(200, 200, 100));
+
+    let mut lines: Vec<Line> = Vec::new();
 
     // Header
-    lines.push(format!(
-        "{:10} │ {:47} │ {}",
-        "Offset", "00 01 02 03 04 05 06 07  08 09 0A 0B 0C 0D 0E 0F", "ASCII"
-    ));
-    lines.push(format!("{}", "─".repeat(area.width as usize - 2)));
+    lines.push(Line::from(vec![
+        Span::raw(format!("{:10} │ ", "Offset")),
+        Span::raw("00 01 02 03 04 05 06 07  08 09 0A 0B 0C 0D 0E 0F"),
+        Span::raw(" │ ASCII"),
+    ]));
+    lines.push(Line::from("─".repeat(area.width as usize - 2)));
 
     let base_addr = section.addr;
     let start_row = app.hexdump.scroll;
@@ -90,36 +90,52 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         let end = (offset + BYTES_PER_ROW).min(data.len());
         let row_data = &data[offset..end];
 
-        // Hex part
-        let hex_str: Vec<String> = row_data.iter().enumerate().map(|(i, b)| {
-            let s = format!("{:02x}", b);
-            if offset + i == app.hexdump.cursor_offset {
-                format!("[{}]", s)
-            } else {
-                s
-            }
-        }).collect();
-        let hex_line = hex_str.join(" ");
-        let hex_padded = format!("{:47}", hex_line);
+        let mut spans: Vec<Span> = Vec::new();
+        spans.push(Span::raw(format!("0x{:08x} │ ", base_addr + offset as u64)));
 
-        // ASCII part
-        let ascii_str: String = row_data.iter().enumerate().map(|(_i, &b)| {
-            if b.is_ascii_graphic() || b == b' ' {
-                b as char
-            } else {
-                '·'
+        // Hex bytes
+        for i in 0..BYTES_PER_ROW {
+            if i == 8 {
+                spans.push(Span::raw(" "));
             }
-        }).collect();
+            if i < row_data.len() {
+                let byte_pos = offset + i;
+                let s = format!("{:02x}", row_data[i]);
+                if byte_pos == app.hexdump.cursor_offset {
+                    spans.push(Span::styled(s, cursor_style));
+                } else {
+                    spans.push(Span::raw(s));
+                }
+                spans.push(Span::raw(" "));
+            } else {
+                spans.push(Span::raw("   "));
+            }
+        }
+        spans.push(Span::raw("│ "));
 
-        lines.push(format!(
-            "0x{:08x} │ {} │ {}",
-            base_addr + offset as u64,
-            hex_padded,
-            ascii_str
-        ));
+        // ASCII
+        for i in 0..BYTES_PER_ROW {
+            if i < row_data.len() {
+                let byte_pos = offset + i;
+                let ch = if row_data[i].is_ascii_graphic() || row_data[i] == b' ' {
+                    row_data[i] as char
+                } else {
+                    '·'
+                };
+                if byte_pos == app.hexdump.cursor_offset {
+                    spans.push(Span::styled(ch.to_string(), cursor_style));
+                } else {
+                    spans.push(Span::raw(ch.to_string()));
+                }
+            } else {
+                spans.push(Span::raw(" "));
+            }
+        }
+
+        let line = Line::from(spans);
+        lines.push(line);
     }
 
-    let text = lines.join("\n");
     let title = format!(
         "{} - 0x{:x}-0x{:x}",
         section.name,
@@ -133,7 +149,7 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         Style::default()
     };
 
-    let p = Paragraph::new(text)
+    let p = Paragraph::new(lines)
         .block(Block::default().borders(Borders::ALL).title(title).border_style(border_style));
 
     f.render_widget(p, area);
