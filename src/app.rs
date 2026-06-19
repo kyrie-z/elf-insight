@@ -104,7 +104,7 @@ fn build_tree(data: &ElfData) -> Vec<TreeNode> {
     });
 
     nodes.push(TreeNode {
-        label: format!("Program Headers ({} entries)", data.phnum),
+        label: format!("Program Headers (0x{:x}-0x{:x})", data.phoff, data.phoff + data.phnum as u64 * data.phentsize as u64),
         node_type: TreeNodeType::ProgramHeaders,
         depth: 0,
         children: vec![],
@@ -112,7 +112,7 @@ fn build_tree(data: &ElfData) -> Vec<TreeNode> {
     });
 
     nodes.push(TreeNode {
-        label: format!("Section Headers ({} entries)", data.shnum),
+        label: format!("Section Headers (0x{:x}-0x{:x})", data.shoff, data.shoff + data.shnum as u64 * data.shentsize as u64),
         node_type: TreeNodeType::SectionHeaders,
         depth: 0,
         children: vec![],

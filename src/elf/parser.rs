@@ -263,6 +263,7 @@ fn section_type_to_str(t: u32) -> String {
         goblin::elf::section_header::SHT_GNU_VERDEF => "VERDEF".into(),
         goblin::elf::section_header::SHT_INIT_ARRAY => "INIT_ARRAY".into(),
         goblin::elf::section_header::SHT_FINI_ARRAY => "FINI_ARRAY".into(),
+        goblin::elf::section_header::SHT_GNU_ATTRIBUTES => "GNU_ATTRIBUTES".into(),
         _ => format!("0x{:x}", t),
     }
 }
@@ -297,6 +298,7 @@ fn segment_type_to_str(t: u32) -> String {
         goblin::elf::program_header::PT_GNU_EH_FRAME => "GNU_EH_FRAME".into(),
         goblin::elf::program_header::PT_GNU_STACK => "GNU_STACK".into(),
         goblin::elf::program_header::PT_GNU_RELRO => "GNU_RELRO".into(),
+        goblin::elf::program_header::PT_GNU_PROPERTY => "GNU_PROPERTY".into(),
         _ => format!("0x{:x}", t),
     }
 }
