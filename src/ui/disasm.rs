@@ -68,17 +68,17 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     let mut lines = Vec::new();
     if let Some(func) = disasm.functions.get(app.disasm.selected_function) {
         let visible_rows = chunks[1].height.saturating_sub(2) as usize;
-        let total_insns = func.instructions.len();
+        let total_insns = func.end_idx - func.start_idx;
         let max_scroll = total_insns.saturating_sub(visible_rows);
 
         if app.disasm.scroll > max_scroll {
             app.disasm.scroll = max_scroll;
         }
 
-        let start = app.disasm.scroll;
-        let end = (start + visible_rows).min(total_insns);
+        let start = func.start_idx + app.disasm.scroll;
+        let end = (start + visible_rows).min(func.end_idx);
 
-        for insn in &func.instructions[start..end] {
+        for insn in &disasm.all_instructions[start..end] {
             let bytes_str: String = insn
                 .bytes
                 .iter()

@@ -15,7 +15,8 @@ pub struct FunctionInfo {
     pub name: String,
     pub start_addr: u64,
     pub end_addr: u64,
-    pub instructions: Vec<DisasmInstruction>,
+    pub start_idx: usize,
+    pub end_idx: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -76,35 +77,35 @@ fn identify_functions(instructions: &[DisasmInstruction]) -> Vec<FunctionInfo> {
 
     let mut functions = Vec::new();
     let mut func_start = instructions[0].address;
-    let mut func_insns = Vec::new();
+    let mut func_start_idx = 0usize;
 
-    for insn in instructions {
-        let is_call = insn.mnemonic == "call";
+    for (i, insn) in instructions.iter().enumerate() {
         let is_ret = insn.mnemonic == "ret"
             || insn.mnemonic == "retf"
             || insn.mnemonic == "iret"
             || insn.mnemonic == "iretd";
-
-        func_insns.push(insn.clone());
 
         if is_ret {
             functions.push(FunctionInfo {
                 name: format!("sub_{:x}", func_start),
                 start_addr: func_start,
                 end_addr: insn.address + insn.length as u64,
-                instructions: func_insns.clone(),
+                start_idx: func_start_idx,
+                end_idx: i + 1,
             });
-            func_insns.clear();
+            func_start_idx = i + 1;
             func_start = insn.address + insn.length as u64;
         }
     }
 
-    if !func_insns.is_empty() {
+    if func_start_idx < instructions.len() {
+        let last = &instructions[instructions.len() - 1];
         functions.push(FunctionInfo {
             name: format!("sub_{:x}", func_start),
             start_addr: func_start,
-            end_addr: func_insns.last().unwrap().address + func_insns.last().unwrap().length as u64,
-            instructions: func_insns,
+            end_addr: last.address + last.length as u64,
+            start_idx: func_start_idx,
+            end_idx: instructions.len(),
         });
     }
 
@@ -120,33 +121,11 @@ pub fn merge_symbols_with_functions(
             continue;
         }
 
-        let mut found = false;
         for func in &mut functions {
             if func.start_addr == sym.addr || func.name == sym.name {
                 func.name = sym.name.clone();
-                found = true;
                 break;
             }
-        }
-
-        if found {
-            continue;
-        }
-
-        let insns = functions
-            .iter()
-            .flat_map(|f| f.instructions.iter())
-            .filter(|i| i.address >= sym.addr)
-            .cloned()
-            .collect::<Vec<_>>();
-
-        if !insns.is_empty() {
-            functions.push(FunctionInfo {
-                name: sym.name.clone(),
-                start_addr: sym.addr,
-                end_addr: insns.last().unwrap().address + insns.last().unwrap().length as u64,
-                instructions: insns,
-            });
         }
     }
 
@@ -187,7 +166,7 @@ mod tests {
         assert_eq!(result.all_instructions[1].mnemonic, "ret");
         assert_eq!(result.functions.len(), 1);
         assert_eq!(result.functions[0].start_addr, 0x1000);
-        assert_eq!(result.functions[0].instructions.len(), 2);
+        assert_eq!(result.functions[0].end_idx - result.functions[0].start_idx, 2);
     }
 
     #[test]
@@ -236,7 +215,8 @@ mod tests {
             name: "sub_1000".into(),
             start_addr: 0x1000,
             end_addr: 0x1005,
-            instructions: vec![],
+            start_idx: 0,
+            end_idx: 0,
         };
         let symbols = vec![SymbolInfo {
             name: "main".into(),

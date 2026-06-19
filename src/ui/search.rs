@@ -165,14 +165,10 @@ fn apply_search_result(app: &mut App) {
             DetailView::Disassembly => {
                 if let Some(disasm) = &app.disasm_cache {
                     if pos < disasm.all_instructions.len() {
-                        let target_insn = &disasm.all_instructions[pos];
                         for (fi, func) in disasm.functions.iter().enumerate() {
-                            if target_insn.address >= func.start_addr && target_insn.address < func.end_addr {
-                                let local_idx = func.instructions.iter()
-                                    .position(|i| i.address == target_insn.address)
-                                    .unwrap_or(0);
+                            if pos >= func.start_idx && pos < func.end_idx {
                                 app.disasm.selected_function = fi;
-                                app.disasm.scroll = local_idx;
+                                app.disasm.scroll = pos - func.start_idx;
                                 return;
                             }
                         }
