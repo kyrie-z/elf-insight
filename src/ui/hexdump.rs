@@ -58,6 +58,21 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         app.hexdump.scroll = max_scroll;
     }
 
+    if app.hexdump.cursor_offset >= data.len() {
+        app.hexdump.cursor_offset = data.len().saturating_sub(1);
+    }
+
+    let cursor_row = app.hexdump.cursor_offset / BYTES_PER_ROW;
+    if cursor_row < app.hexdump.scroll {
+        app.hexdump.scroll = cursor_row;
+    }
+    if cursor_row >= app.hexdump.scroll + visible_rows {
+        app.hexdump.scroll = cursor_row.saturating_sub(visible_rows - 1);
+    }
+    if app.hexdump.scroll > max_scroll {
+        app.hexdump.scroll = max_scroll;
+    }
+
     let mut lines = Vec::new();
 
     // Header

@@ -336,8 +336,16 @@ fn handle_key(app: &mut App, key: KeyCode) {
                 update_view(app);
             } else if app.focus == Focus::Detail {
                 match app.current_view {
+                    DetailView::Hexdump => {
+                        if app.hexdump.cursor_offset >= 16 {
+                            app.hexdump.cursor_offset -= 16;
+                        }
+                        let row = app.hexdump.cursor_offset / 16;
+                        if row < app.hexdump.scroll {
+                            app.hexdump.scroll = app.hexdump.scroll.saturating_sub(1);
+                        }
+                    }
                     DetailView::Overview => app.overview.scroll = app.overview.scroll.saturating_sub(1),
-                    DetailView::Hexdump => app.hexdump.scroll = app.hexdump.scroll.saturating_sub(1),
                     DetailView::Disassembly => app.disasm.scroll = app.disasm.scroll.saturating_sub(1),
                     DetailView::Strings => app.strings.scroll = app.strings.scroll.saturating_sub(1),
                     DetailView::StructuredInfo => app.info.scroll = app.info.scroll.saturating_sub(1),
@@ -350,8 +358,15 @@ fn handle_key(app: &mut App, key: KeyCode) {
                 update_view(app);
             } else if app.focus == Focus::Detail {
                 match app.current_view {
+                    DetailView::Hexdump => {
+                        app.hexdump.cursor_offset += 16;
+                        let row = app.hexdump.cursor_offset / 16;
+                        let visible_rows = 20;
+                        if row >= app.hexdump.scroll + visible_rows - 1 {
+                            app.hexdump.scroll += 1;
+                        }
+                    }
                     DetailView::Overview => app.overview.scroll += 1,
-                    DetailView::Hexdump => app.hexdump.scroll += 1,
                     DetailView::Disassembly => app.disasm.scroll += 1,
                     DetailView::Strings => app.strings.scroll += 1,
                     DetailView::StructuredInfo => app.info.scroll += 1,
@@ -366,6 +381,13 @@ fn handle_key(app: &mut App, key: KeyCode) {
                         app.disasm.scroll = 0;
                     }
                 }
+            } else if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Hexdump) {
+                app.hexdump.cursor_offset += 1;
+                let row = app.hexdump.cursor_offset / 16;
+                let visible_rows = 20;
+                if row >= app.hexdump.scroll + visible_rows - 1 {
+                    app.hexdump.scroll += 1;
+                }
             } else if app.focus == Focus::Tree {
                 app.tree.toggle_expand();
             }
@@ -375,6 +397,14 @@ fn handle_key(app: &mut App, key: KeyCode) {
                 if app.disasm.selected_function > 0 {
                     app.disasm.selected_function -= 1;
                     app.disasm.scroll = 0;
+                }
+            } else if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Hexdump) {
+                if app.hexdump.cursor_offset > 0 {
+                    app.hexdump.cursor_offset -= 1;
+                    let row = app.hexdump.cursor_offset / 16;
+                    if row < app.hexdump.scroll {
+                        app.hexdump.scroll = app.hexdump.scroll.saturating_sub(1);
+                    }
                 }
             } else if app.focus == Focus::Tree {
                 app.tree.toggle_expand();
