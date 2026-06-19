@@ -189,7 +189,7 @@ fn apply_search_result(app: &mut App) {
     if let Some(&pos) = app.search.results.get(app.search.current_result) {
         match app.current_view {
             DetailView::Overview => {
-                app.overview.scroll = pos;
+                app.overview.selected_line = pos;
             }
             DetailView::Hexdump => {
                 app.hexdump.scroll = pos;
@@ -213,7 +213,7 @@ fn apply_search_result(app: &mut App) {
                 app.layout_map.selected_row = pos;
             }
             DetailView::Strings => {
-                app.strings.scroll = pos;
+                app.strings.selected_line = pos;
             }
             _ => {}
         }

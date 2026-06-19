@@ -276,20 +276,49 @@ fn scroll_mut(app: &mut App) -> &mut usize {
     }
 }
 
+fn sel_line_mut(app: &mut App) -> &mut usize {
+    match app.current_view {
+        DetailView::Overview => &mut app.overview.selected_line,
+        DetailView::StructuredInfo => &mut app.info.selected_line,
+        DetailView::Strings => &mut app.strings.selected_line,
+        _ => &mut app.overview.selected_line,
+    }
+}
+
+fn is_line_view(app: &App) -> bool {
+    matches!(app.current_view, DetailView::Overview | DetailView::StructuredInfo | DetailView::Strings)
+}
+
 fn scroll_up(app: &mut App, n: usize) {
-    *scroll_mut(app) = scroll_mut(app).saturating_sub(n);
+    if is_line_view(app) {
+        *sel_line_mut(app) = sel_line_mut(app).saturating_sub(n);
+    } else {
+        *scroll_mut(app) = scroll_mut(app).saturating_sub(n);
+    }
 }
 
 fn scroll_down(app: &mut App, n: usize) {
-    *scroll_mut(app) += n;
+    if is_line_view(app) {
+        *sel_line_mut(app) += n;
+    } else {
+        *scroll_mut(app) += n;
+    }
 }
 
 fn scroll_top(app: &mut App) {
-    *scroll_mut(app) = 0;
+    if is_line_view(app) {
+        *sel_line_mut(app) = 0;
+    } else {
+        *scroll_mut(app) = 0;
+    }
 }
 
 fn scroll_bottom(app: &mut App) {
-    *scroll_mut(app) = usize::MAX;
+    if is_line_view(app) {
+        *sel_line_mut(app) = usize::MAX;
+    } else {
+        *scroll_mut(app) = usize::MAX;
+    }
 }
 
 fn handle_key(app: &mut App, key: KeyCode) {
