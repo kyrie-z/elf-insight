@@ -1,0 +1,10 @@
+[package]
+name = "elf-insight"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ratatui = "0.29"
+crossterm = "0.28"
+goblin = "0.9"
+iced-x86 = "1.21"

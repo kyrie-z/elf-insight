@@ -1,0 +1,10 @@
+{"type":"click","text":"A\n    \n      左右分栏\n      左侧导航树（Section/Segment 列表），右侧为详情面板（Hexdump / 反汇编 / 结构化信息）。经典检查器布局，类似 010 Editor。","choice":"a","id":null,"timestamp":1781839319843}
+{"type":"click","text":"A\n    \n      左右分栏\n      左侧导航树（Section/Segment 列表），右侧为详情面板（Hexdump / 反汇编 / 结构化信息）。经典检查器布局，类似 010 Editor。","choice":"a","id":null,"timestamp":1781839321143}
+{"type":"click","text":"B\n    \n      Tab 页切换\n      顶部 Tab 切换不同视图：Overview → Sections → Hex → Disasm。每个 Tab 全屏显示，信息密度高。","choice":"b","id":null,"timestamp":1781839321839}
+{"type":"click","text":"C\n    \n      三栏布局\n      左侧 Section 列表 | 中间 Hexdump | 右侧反汇编/字符串。三栏联动，选中 section 后中间和右侧同步更新。","choice":"c","id":null,"timestamp":1781839324813}
+{"type":"click","text":"B\n    \n      Tab 页切换\n      顶部 Tab 切换不同视图：Overview → Sections → Hex → Disasm。每个 Tab 全屏显示，信息密度高。","choice":"b","id":null,"timestamp":1781839325240}
+{"type":"click","text":"A\n    \n      左右分栏\n      左侧导航树（Section/Segment 列表），右侧为详情面板（Hexdump / 反汇编 / 结构化信息）。经典检查器布局，类似 010 Editor。","choice":"a","id":null,"timestamp":1781839329654}
+{"type":"click","text":"A\n    \n      左右分栏\n      左侧导航树（Section/Segment 列表），右侧为详情面板（Hexdump / 反汇编 / 结构化信息）。经典检查器布局，类似 010 Editor。","choice":"a","id":null,"timestamp":1781839339325}
+{"type":"click","text":"A\n    \n      左右分栏\n      左侧导航树（Section/Segment 列表），右侧为详情面板（Hexdump / 反汇编 / 结构化信息）。经典检查器布局，类似 010 Editor。","choice":"a","id":null,"timestamp":1781839339570}
+{"type":"click","text":"C\n    \n      三栏布局\n      左侧 Section 列表 | 中间 Hexdump | 右侧反汇编/字符串。三栏联动，选中 section 后中间和右侧同步更新。","choice":"c","id":null,"timestamp":1781839398335}
+{"type":"click","text":"A\n    \n      左右分栏\n      左侧导航树（Section/Segment 列表），右侧为详情面板（Hexdump / 反汇编 / 结构化信息）。经典检查器布局，类似 010 Editor。","choice":"a","id":null,"timestamp":1781839406847}

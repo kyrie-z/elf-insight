@@ -1,0 +1,26 @@
+<h2>ELF Insight — 布局方案对比</h2>
+<p class="subtitle">三种主界面布局，看看哪种最顺手</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>左右分栏</h3>
+      <p>左侧导航树（Section/Segment 列表），右侧为详情面板（Hexdump / 反汇编 / 结构化信息）。经典检查器布局，类似 010 Editor。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Tab 页切换</h3>
+      <p>顶部 Tab 切换不同视图：Overview → Sections → Hex → Disasm。每个 Tab 全屏显示，信息密度高。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>三栏布局</h3>
+      <p>左侧 Section 列表 | 中间 Hexdump | 右侧反汇编/字符串。三栏联动，选中 section 后中间和右侧同步更新。</p>
+    </div>
+  </div>
+</div>
