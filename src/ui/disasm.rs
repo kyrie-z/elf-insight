@@ -119,7 +119,18 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     }
 
     let title = if let Some(func) = disasm.functions.get(app.disasm.selected_function) {
-        format!("{} (0x{:x}-0x{:x})", func.name, func.start_addr, func.end_addr)
+        let cursor_idx = func.start_idx + app.disasm.scroll;
+        let cursor_addr = if cursor_idx < disasm.all_instructions.len() {
+            disasm.all_instructions[cursor_idx].address
+        } else {
+            func.start_addr
+        };
+        let pct = if func.end_idx > func.start_idx {
+            (app.disasm.scroll as f64 / (func.end_idx - func.start_idx) as f64 * 100.0) as u32
+        } else {
+            0
+        };
+        format!("{} (0x{:x}-0x{:x}) [{:>3}%] 0x{:x}", func.name, func.start_addr, func.end_addr, pct, cursor_addr)
     } else {
         "Disassembly".into()
     };

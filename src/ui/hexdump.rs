@@ -1,7 +1,7 @@
 use crate::app::{App, Focus};
 use ratatui::prelude::*;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
 
 const BYTES_PER_ROW: usize = 16;
 
@@ -136,11 +136,16 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         lines.push(line);
     }
 
+    let cursor_addr = section.addr + app.hexdump.cursor_offset as u64;
+    let sector_end = section.addr + section.size;
+
     let title = format!(
-        "{} - 0x{:x}-0x{:x}",
+        "{} - 0x{:x}-0x{:x}  [{:>3}%]  cursor: 0x{:x}",
         section.name,
         section.addr,
-        section.addr + section.size
+        sector_end,
+        (app.hexdump.scroll as f64 / max_scroll.max(1) as f64 * 100.0) as u32,
+        cursor_addr
     );
 
     let border_style = if app.focus == Focus::Detail {
@@ -153,4 +158,11 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         .block(Block::default().borders(Borders::ALL).title(title).border_style(border_style));
 
     f.render_widget(p, area);
+
+    let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+        .begin_symbol(Some("↑"))
+        .end_symbol(Some("↓"));
+    let mut scrollbar_state = ScrollbarState::new(max_scroll)
+        .position(app.hexdump.scroll);
+    f.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
 }
