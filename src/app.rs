@@ -553,6 +553,12 @@ fn handle_key(app: &mut App, key: KeyCode) {
         KeyCode::Char('G') => {
             app.pending_g = false;
             if app.focus == Focus::Detail {
+                if matches!(app.current_view, DetailView::Hexdump) {
+                    if let Some(section) = get_hex_section(app) {
+                        let len = section.data.len();
+                        app.hexdump.cursor_offset = len.saturating_sub(1);
+                    }
+                }
                 scroll_bottom(app);
             }
         }
@@ -638,6 +644,13 @@ fn layout_map_enter(app: &mut App) {
                 }
             }
         }
+    }
+}
+
+fn get_hex_section(app: &App) -> Option<&crate::elf::parser::SectionInfo> {
+    match &app.tree.selected_node {
+        Some(TreeNodeType::SectionBody { index }) => Some(&app.data.sections[*index]),
+        _ => None,
     }
 }
 
