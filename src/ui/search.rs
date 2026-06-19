@@ -34,6 +34,13 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     };
     let display = if app.search.no_matches_timer > 0 {
         format!("/{}  [No matches]", app.search.input)
+    } else if !app.search.results.is_empty() {
+        format!(
+            "/{}  [{}/{}]",
+            app.search.input,
+            app.search.current_result + 1,
+            app.search.results.len()
+        )
     } else {
         format!("/{}_", app.search.input)
     };
