@@ -296,6 +296,13 @@ fn handle_key(app: &mut App, key: KeyCode) {
                 app.tree.toggle_expand();
             }
         }
+        KeyCode::Char('g') => {
+            if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Hexdump) {
+                app.hexdump.goto_mode = true;
+                app.hexdump.goto_input.clear();
+                app.focus = Focus::Search;
+            }
+        }
         _ => {}
     }
 }
