@@ -324,6 +324,52 @@ fn handle_key(app: &mut App, key: KeyCode) {
                 app.focus = Focus::Search;
             }
         }
+        KeyCode::PageUp => {
+            if app.focus == Focus::Detail {
+                let visible = 10;
+                match app.current_view {
+                    DetailView::Overview => app.overview.scroll = app.overview.scroll.saturating_sub(visible),
+                    DetailView::Hexdump => app.hexdump.scroll = app.hexdump.scroll.saturating_sub(visible),
+                    DetailView::Disassembly => app.disasm.scroll = app.disasm.scroll.saturating_sub(visible),
+                    DetailView::Strings => app.strings.scroll = app.strings.scroll.saturating_sub(visible),
+                    DetailView::StructuredInfo => app.info.scroll = app.info.scroll.saturating_sub(visible),
+                }
+            }
+        }
+        KeyCode::PageDown => {
+            if app.focus == Focus::Detail {
+                let visible = 10;
+                match app.current_view {
+                    DetailView::Overview => app.overview.scroll += visible,
+                    DetailView::Hexdump => app.hexdump.scroll += visible,
+                    DetailView::Disassembly => app.disasm.scroll += visible,
+                    DetailView::Strings => app.strings.scroll += visible,
+                    DetailView::StructuredInfo => app.info.scroll += visible,
+                }
+            }
+        }
+        KeyCode::Home => {
+            if app.focus == Focus::Detail {
+                match app.current_view {
+                    DetailView::Overview => app.overview.scroll = 0,
+                    DetailView::Hexdump => app.hexdump.scroll = 0,
+                    DetailView::Disassembly => app.disasm.scroll = 0,
+                    DetailView::Strings => app.strings.scroll = 0,
+                    DetailView::StructuredInfo => app.info.scroll = 0,
+                }
+            }
+        }
+        KeyCode::End => {
+            if app.focus == Focus::Detail {
+                match app.current_view {
+                    DetailView::Overview => app.overview.scroll = usize::MAX,
+                    DetailView::Hexdump => app.hexdump.scroll = usize::MAX,
+                    DetailView::Disassembly => app.disasm.scroll = usize::MAX,
+                    DetailView::Strings => app.strings.scroll = usize::MAX,
+                    DetailView::StructuredInfo => app.info.scroll = usize::MAX,
+                }
+            }
+        }
         _ => {}
     }
 }
