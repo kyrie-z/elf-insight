@@ -6,6 +6,7 @@ use crate::ui::info::InfoState;
 use crate::ui::hexdump::HexdumpState;
 use crate::ui::disasm::DisasmState;
 use crate::ui::strings::StringsState;
+use crate::ui::layout_map::LayoutMapState;
 use crate::ui::search::SearchState;
 
 use crossterm::{
@@ -29,6 +30,7 @@ pub struct App {
     pub data: ElfData,
     pub tree: TreeState,
     pub overview: OverviewState,
+    pub layout_map: LayoutMapState,
     pub info: InfoState,
     pub hexdump: HexdumpState,
     pub disasm: DisasmState,
@@ -57,6 +59,7 @@ impl App {
             data,
             tree: TreeState::new(tree),
             overview: OverviewState::new(),
+            layout_map: LayoutMapState::new(),
             info: InfoState::new(),
             hexdump: HexdumpState::new(),
             disasm: DisasmState::new(),
@@ -261,16 +264,13 @@ fn handle_mouse(app: &mut App, mouse: crossterm::event::MouseEvent) {
 }
 
 fn scroll_detail(app: &mut App, delta: isize) {
-    if matches!(app.current_view, DetailView::LayoutMap) {
-        return;
-    }
     let scroll = match app.current_view {
         DetailView::Overview => &mut app.overview.scroll,
+        DetailView::LayoutMap => &mut app.layout_map.scroll,
         DetailView::StructuredInfo => &mut app.info.scroll,
         DetailView::Hexdump => &mut app.hexdump.scroll,
         DetailView::Disassembly => &mut app.disasm.scroll,
         DetailView::Strings => &mut app.strings.scroll,
-        DetailView::LayoutMap => return,
     };
     if delta > 0 {
         *scroll += delta as usize;
@@ -286,7 +286,7 @@ fn get_scroll(app: &mut App) -> &mut usize {
         DetailView::Hexdump => &mut app.hexdump.scroll,
         DetailView::Disassembly => &mut app.disasm.scroll,
         DetailView::Strings => &mut app.strings.scroll,
-        DetailView::LayoutMap => &mut app.overview.scroll, // dummy, won't be used
+        DetailView::LayoutMap => &mut app.layout_map.scroll,
     }
 }
 
@@ -351,7 +351,7 @@ fn handle_key(app: &mut App, key: KeyCode) {
             }
         }
         KeyCode::Char('G') => {
-            if app.focus == Focus::Detail && !matches!(app.current_view, DetailView::LayoutMap) {
+            if app.focus == Focus::Detail {
                 *get_scroll(app) = usize::MAX;
             }
         }
@@ -359,9 +359,6 @@ fn handle_key(app: &mut App, key: KeyCode) {
             if app.focus == Focus::Detail {
                 if app.pending_g {
                     app.pending_g = false;
-                    if matches!(app.current_view, DetailView::LayoutMap) {
-                        return;
-                    }
                     *get_scroll(app) = 0;
                     if matches!(app.current_view, DetailView::Hexdump) {
                         app.hexdump.cursor_offset = 0;
@@ -373,14 +370,14 @@ fn handle_key(app: &mut App, key: KeyCode) {
         }
         KeyCode::Char('u') => {
             app.pending_g = false;
-            if app.focus == Focus::Detail && !matches!(app.current_view, DetailView::LayoutMap) {
+            if app.focus == Focus::Detail {
                 let s = get_scroll(app);
                 *s = s.saturating_sub(10);
             }
         }
         KeyCode::Char('d') => {
             app.pending_g = false;
-            if app.focus == Focus::Detail && !matches!(app.current_view, DetailView::LayoutMap) {
+            if app.focus == Focus::Detail {
                 *get_scroll(app) += 10;
             }
         }
@@ -429,7 +426,6 @@ fn handle_key(app: &mut App, key: KeyCode) {
                             app.hexdump.scroll = app.hexdump.scroll.saturating_sub(1);
                         }
                     }
-                    DetailView::LayoutMap => {}
                     _ => {
                         *get_scroll(app) = get_scroll(app).saturating_sub(1);
                     }
@@ -457,7 +453,6 @@ fn handle_key(app: &mut App, key: KeyCode) {
                             app.hexdump.scroll += 1;
                         }
                     }
-                    DetailView::LayoutMap => {}
                     _ => {
                         *get_scroll(app) += 1;
                     }
@@ -497,22 +492,22 @@ fn handle_key(app: &mut App, key: KeyCode) {
             }
         }
         KeyCode::PageUp => {
-            if app.focus == Focus::Detail && !matches!(app.current_view, DetailView::LayoutMap) {
+            if app.focus == Focus::Detail {
                 *get_scroll(app) = get_scroll(app).saturating_sub(10);
             }
         }
         KeyCode::PageDown => {
-            if app.focus == Focus::Detail && !matches!(app.current_view, DetailView::LayoutMap) {
+            if app.focus == Focus::Detail {
                 *get_scroll(app) += 10;
             }
         }
         KeyCode::Home => {
-            if app.focus == Focus::Detail && !matches!(app.current_view, DetailView::LayoutMap) {
+            if app.focus == Focus::Detail {
                 *get_scroll(app) = 0;
             }
         }
         KeyCode::End => {
-            if app.focus == Focus::Detail && !matches!(app.current_view, DetailView::LayoutMap) {
+            if app.focus == Focus::Detail {
                 *get_scroll(app) = usize::MAX;
             }
         }

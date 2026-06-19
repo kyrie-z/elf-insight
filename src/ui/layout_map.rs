@@ -1,6 +1,17 @@
 use crate::app::{App, Focus};
 use ratatui::prelude::*;
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
+
+pub struct LayoutMapState {
+    pub scroll: usize,
+}
+
+impl LayoutMapState {
+    pub fn new() -> Self {
+        LayoutMapState { scroll: 0 }
+    }
+}
 
 pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     let data = &app.data;
@@ -26,49 +37,42 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         return;
     }
 
-    let bar_width = inner.width as usize;
-    let bar_y = inner.y;
+    let max_bar = (inner.width as usize).saturating_sub(70).max(10);
 
-    // Build all regions in the file
     #[derive(Clone)]
     struct Region {
-        start: u64,
-        end: u64,
         label: String,
+        offset: u64,
+        size: u64,
         color: Color,
     }
 
     let mut regions: Vec<Region> = Vec::new();
 
     // ELF Header
-    let eh_size = data.ehsize as u64;
     regions.push(Region {
-        start: 0,
-        end: eh_size,
         label: "ELF Header".into(),
+        offset: 0,
+        size: data.ehsize as u64,
         color: Color::Rgb(255, 200, 60),
     });
 
     // Program Headers
-    if data.phnum > 0 {
-        let ph_start = data.phoff;
-        let ph_end = data.phoff + data.phnum as u64 * data.phentsize as u64;
+    if data.phnum > 0 && data.phoff > 0 {
         regions.push(Region {
-            start: ph_start,
-            end: ph_end,
-            label: "PHDR".into(),
+            label: format!("Program Headers ({})", data.phnum),
+            offset: data.phoff,
+            size: data.phnum as u64 * data.phentsize as u64,
             color: Color::Rgb(100, 200, 255),
         });
     }
 
     // Section Headers
-    if data.shnum > 0 {
-        let sh_start = data.shoff;
-        let sh_end = data.shoff + data.shnum as u64 * data.shentsize as u64;
+    if data.shnum > 0 && data.shoff > 0 {
         regions.push(Region {
-            start: sh_start,
-            end: sh_end,
-            label: "SHDR".into(),
+            label: format!("Section Headers ({})", data.shnum),
+            offset: data.shoff,
+            size: data.shnum as u64 * data.shentsize as u64,
             color: Color::Rgb(180, 140, 255),
         });
     }
@@ -80,118 +84,97 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         }
         let color = if s.flags.contains('X') {
             Color::Rgb(220, 80, 80)
-        } else if s.name.contains("str") {
-            Color::Rgb(100, 200, 100)
         } else if s.flags.contains('W') {
             Color::Rgb(80, 140, 220)
+        } else if s.name.contains("str") {
+            Color::Rgb(100, 200, 100)
         } else {
             Color::Rgb(200, 180, 80)
         };
         regions.push(Region {
-            start: s.offset,
-            end: s.offset + s.size,
-            label: if s.name.len() > 10 { format!("{:.10}", s.name) } else { s.name.clone() },
+            label: s.name.clone(),
+            offset: s.offset,
+            size: s.size,
             color,
         });
     }
 
-    // Sort by start position
-    regions.sort_by_key(|r| r.start);
+    // Sort by offset
+    regions.sort_by_key(|r| r.offset);
 
-    // Merge overlapping regions (keep the last in sort order for overlaps)
-    let mut merged: Vec<Region> = Vec::new();
-    for r in regions {
-        if let Some(last) = merged.last_mut() {
-            if r.start <= last.end {
-                if r.end > last.end {
-                    last.end = r.end;
-                }
-                // Don't replace label/color for overlaps
-                continue;
-            }
-        }
-        merged.push(r);
-    }
+    let mut lines: Vec<Line> = Vec::new();
 
-    // Draw gaps and regions
-    let mut cursor = 0u64;
-    for region in &merged {
-        // Gap before this region
-        if region.start > cursor {
-            let gap_start = ((cursor as f64 / file_size as f64) * bar_width as f64) as u16;
-            let gap_end = ((region.start as f64 / file_size as f64) * bar_width as f64) as u16;
-            let gap_width = (gap_end.saturating_sub(gap_start)).min(area.right().saturating_sub(inner.x + gap_start));
-            if gap_width > 0 {
-                let gap_rect = Rect::new(inner.x + gap_start, bar_y, gap_width, 1);
-                f.render_widget(Paragraph::new("").style(Style::default().bg(Color::Rgb(60, 60, 60))), gap_rect);
-            }
-        }
+    // Header line
+    lines.push(Line::from(vec![
+        Span::styled(
+            format!(" {:<40} {:>10}  {:>12}  {:>6}  ", "Name", "Offset", "Size", "Pct"),
+            Style::default().add_modifier(Modifier::BOLD),
+        ),
+        Span::raw("Bar"),
+    ]));
+    lines.push(Line::from("─".repeat(inner.width as usize - 2)));
 
-        let bar_start = ((region.start as f64 / file_size as f64) * bar_width as f64) as u16;
-        let bar_end = ((region.end as f64 / file_size as f64) * bar_width as f64) as u16;
-        let bar_start = bar_start.min(inner.width.saturating_sub(1));
-        let bar_end = bar_end.min(inner.width);
-        let bar_len = (bar_end.saturating_sub(bar_start)).max(1);
-        let bar_len = bar_len.min(area.right().saturating_sub(inner.x + bar_start));
+    for region in &regions {
+        let pct = (region.size as f64 / file_size as f64) * 100.0;
+        let bar_len = ((region.size as f64 / file_size as f64) * max_bar as f64) as usize;
+        let bar_len = bar_len.max(1).min(max_bar);
 
-        let bar_rect = Rect::new(inner.x + bar_start, bar_y, bar_len, 1);
-        f.render_widget(Paragraph::new("").style(Style::default().bg(region.color)), bar_rect);
+        let label = if region.label.len() > 40 {
+            format!("{:.37}...", region.label)
+        } else {
+            region.label.clone()
+        };
 
-        cursor = region.end;
+        let mut spans = vec![
+            Span::raw(format!(
+                " {:<40}  0x{:06x}  0x{:08x}  {:5.1}%  ",
+                label, region.offset, region.size, pct
+            )),
+            Span::styled(
+                "█".repeat(bar_len),
+                Style::default().fg(region.color),
+            ),
+        ];
+        lines.push(Line::from(spans));
     }
 
     // Legend
+    lines.push(Line::from(""));
     let legend_items = vec![
         ("ELF Hdr", Color::Rgb(255, 200, 60)),
         ("PHDR", Color::Rgb(100, 200, 255)),
         ("SHDR", Color::Rgb(180, 140, 255)),
         ("Code", Color::Rgb(220, 80, 80)),
         ("Data", Color::Rgb(200, 180, 80)),
-        ("Writable", Color::Rgb(80, 140, 220)),
+        ("Data+W", Color::Rgb(80, 140, 220)),
         ("Strings", Color::Rgb(100, 200, 100)),
-        ("Gap", Color::Rgb(60, 60, 60)),
     ];
+    let legend_spans: Vec<Span> = legend_items
+        .iter()
+        .flat_map(|(label, color)| {
+            vec![
+                Span::styled("█", Style::default().fg(*color)),
+                Span::raw(format!(" {}  ", label)),
+            ]
+        })
+        .collect();
+    lines.push(Line::from(legend_spans));
 
-    let legend_width = (legend_items.len() as u16 * 12).min(inner.width);
-    let legend_x = inner.x + (inner.width.saturating_sub(legend_width) / 2).min(inner.width.saturating_sub(1));
-    let legend_y = inner.y + 1;
+    let total = lines.len();
+    let visible = inner.height.saturating_sub(1) as usize;
+    let max_scroll = total.saturating_sub(visible);
 
-    for (i, (label, color)) in legend_items.iter().enumerate() {
-        let x = legend_x + i as u16 * 12;
-        if x + 11 > area.right() {
-            break;
-        }
-        let swatch = Rect::new(x, legend_y, 2, 1);
-        f.render_widget(Paragraph::new("").style(Style::default().bg(*color)), swatch);
-        let label_rect = Rect::new(x + 3, legend_y, label.len() as u16, 1);
-        f.render_widget(Paragraph::new(*label).style(Style::default().fg(Color::White)), label_rect);
+    if app.layout_map.scroll > max_scroll {
+        app.layout_map.scroll = max_scroll;
     }
 
-    // Section labels below the bar
-    let mut label_y = legend_y + 2;
-    if label_y < inner.bottom() {
-        let mut last_x = 0u16;
-        for region in &merged {
-            if label_y >= inner.bottom() {
-                break;
-            }
-            let bar_start = ((region.start as f64 / file_size as f64) * bar_width as f64) as u16;
-            let sec_width = ((region.end.saturating_sub(region.start) as f64 / file_size as f64) * bar_width as f64) as u16;
+    let p = Paragraph::new(lines).scroll((app.layout_map.scroll as u16, 0));
 
-            let label = region.label.clone();
-            let label_x = inner.x + bar_start + sec_width.saturating_sub(label.len() as u16) / 2;
-            let label_x = label_x.min(inner.right().saturating_sub(label.len() as u16));
+    f.render_widget(p, inner);
 
-            if label_x > last_x {
-                let label_rect = Rect::new(label_x, label_y, label.len() as u16, 1);
-                if label_rect.right() < area.right() {
-                    f.render_widget(
-                        Paragraph::new(label).style(Style::default().fg(Color::Gray)),
-                        label_rect,
-                    );
-                    last_x = label_x;
-                }
-            }
-        }
-    }
+    let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+        .begin_symbol(Some("↑"))
+        .end_symbol(Some("↓"));
+    let mut scrollbar_state = ScrollbarState::new(max_scroll).position(app.layout_map.scroll);
+    f.render_stateful_widget(scrollbar, inner, &mut scrollbar_state);
 }
