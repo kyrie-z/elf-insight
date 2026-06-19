@@ -1,10 +1,11 @@
 use crate::app::{App, Focus};
 use ratatui::prelude::*;
-use ratatui::widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
+use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
 
 pub struct DisasmState {
     pub selected_function: usize,
     pub scroll: usize,
+    pub func_list_state: ListState,
 }
 
 impl DisasmState {
@@ -12,6 +13,7 @@ impl DisasmState {
         DisasmState {
             selected_function: 0,
             scroll: 0,
+            func_list_state: ListState::default(),
         }
     }
 }
@@ -27,26 +29,45 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         }
     };
 
-    let mut lines = Vec::new();
+    // Split into function list (left 25%) and instructions (right 75%)
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(25), Constraint::Percentage(75)])
+        .split(area);
+
+    let border_style = if app.focus == Focus::Detail {
+        Style::default().fg(Color::Cyan)
+    } else {
+        Style::default()
+    };
 
     // Function list
-    let func_names: Vec<String> = disasm
+    let func_items: Vec<ListItem> = disasm
         .functions
         .iter()
-        .map(|f| {
-            if disasm.functions.iter().position(|x| x.start_addr == f.start_addr) == Some(app.disasm.selected_function) {
-                format!("[{}]", f.name)
+        .enumerate()
+        .map(|(i, func)| {
+            let label = format!(" {} (0x{:x})", func.name, func.start_addr);
+            if i == app.disasm.selected_function {
+                ListItem::new(label).style(Style::default().bg(Color::DarkGray).fg(Color::White))
             } else {
-                f.name.clone()
+                ListItem::new(label)
             }
         })
         .collect();
-    lines.push(format!("Functions: {}", func_names.join(" | ")));
-    lines.push(format!("{}", "─".repeat(area.width as usize - 2)));
 
-    // Instructions for selected function
+    app.disasm.func_list_state.select(Some(app.disasm.selected_function));
+
+    let func_list = List::new(func_items)
+        .block(Block::default().borders(Borders::ALL).title("Functions").border_style(border_style))
+        .highlight_style(Style::default().bg(Color::DarkGray).fg(Color::White));
+
+    f.render_stateful_widget(func_list, chunks[0], &mut app.disasm.func_list_state);
+
+    // Instructions
+    let mut lines = Vec::new();
     if let Some(func) = disasm.functions.get(app.disasm.selected_function) {
-        let visible_rows = area.height.saturating_sub(4) as usize;
+        let visible_rows = chunks[1].height.saturating_sub(2) as usize;
         let total_insns = func.instructions.len();
         let max_scroll = total_insns.saturating_sub(visible_rows);
 
@@ -65,7 +86,7 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
                 .collect::<Vec<_>>()
                 .join(" ");
             lines.push(format!(
-                "  0x{:08x}: {:20}  {} {}",
+                "0x{:08x}: {:20}  {} {}",
                 insn.address, bytes_str, insn.mnemonic, insn.operands
             ));
         }
@@ -74,22 +95,16 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
             .begin_symbol(Some("↑"))
             .end_symbol(Some("↓"));
         let mut scrollbar_state = ScrollbarState::new(max_scroll).position(app.disasm.scroll);
-        f.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
+        f.render_stateful_widget(scrollbar, chunks[1], &mut scrollbar_state);
     }
 
     let title = if let Some(func) = disasm.functions.get(app.disasm.selected_function) {
-        format!("Disassembly - {} (0x{:x}-0x{:x})", func.name, func.start_addr, func.end_addr)
+        format!("{} (0x{:x}-0x{:x})", func.name, func.start_addr, func.end_addr)
     } else {
         "Disassembly".into()
     };
 
-    let border_style = if app.focus == Focus::Detail {
-        Style::default().fg(Color::Cyan)
-    } else {
-        Style::default()
-    };
-
     let text = lines.join("\n");
     let p = Paragraph::new(text).block(Block::default().borders(Borders::ALL).title(title).border_style(border_style));
-    f.render_widget(p, area);
+    f.render_widget(p, chunks[1]);
 }

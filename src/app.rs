@@ -104,7 +104,11 @@ fn build_tree(data: &ElfData) -> Vec<TreeNode> {
         .sections
         .iter()
         .map(|s| TreeNode {
-            label: format!("[{}] {}", s.index, s.name),
+            label: if s.size > 0 && s.offset > 0 {
+                format!("[{}] {} (0x{:x}-0x{:x})", s.index, s.name, s.offset, s.offset + s.size)
+            } else {
+                format!("[{}] {}", s.index, s.name)
+            },
             node_type: TreeNodeType::SectionBody {
                 index: s.index,
             },
@@ -409,6 +413,11 @@ fn handle_key(app: &mut App, key: KeyCode) {
             if app.focus == Focus::Tree {
                 app.tree.move_up();
                 update_view(app);
+            } else if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Disassembly) {
+                if app.disasm.selected_function > 0 {
+                    app.disasm.selected_function -= 1;
+                    app.disasm.scroll = 0;
+                }
             } else if app.focus == Focus::Detail {
                 match app.current_view {
                     DetailView::Hexdump => {
@@ -431,6 +440,13 @@ fn handle_key(app: &mut App, key: KeyCode) {
             if app.focus == Focus::Tree {
                 app.tree.move_down();
                 update_view(app);
+            } else if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Disassembly) {
+                if let Some(ref disasm) = app.disasm_cache {
+                    if app.disasm.selected_function + 1 < disasm.functions.len() {
+                        app.disasm.selected_function += 1;
+                        app.disasm.scroll = 0;
+                    }
+                }
             } else if app.focus == Focus::Detail {
                 match app.current_view {
                     DetailView::Hexdump => {
@@ -448,15 +464,8 @@ fn handle_key(app: &mut App, key: KeyCode) {
                 }
             }
         }
-        KeyCode::Right | KeyCode::Enter => {
-            if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Disassembly) {
-                if let Some(ref disasm) = app.disasm_cache {
-                    if app.disasm.selected_function + 1 < disasm.functions.len() {
-                        app.disasm.selected_function += 1;
-                        app.disasm.scroll = 0;
-                    }
-                }
-            } else if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Hexdump) {
+        KeyCode::Right => {
+            if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Hexdump) {
                 app.hexdump.cursor_offset += 1;
                 let row = app.hexdump.cursor_offset / 16;
                 let visible_rows = 20;
@@ -467,13 +476,15 @@ fn handle_key(app: &mut App, key: KeyCode) {
                 app.tree.toggle_expand();
             }
         }
-        KeyCode::Left => {
+        KeyCode::Enter => {
             if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Disassembly) {
-                if app.disasm.selected_function > 0 {
-                    app.disasm.selected_function -= 1;
-                    app.disasm.scroll = 0;
-                }
-            } else if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Hexdump) {
+                app.disasm.scroll = 0;
+            } else if app.focus == Focus::Tree {
+                app.tree.toggle_expand();
+            }
+        }
+        KeyCode::Left => {
+            if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Hexdump) {
                 if app.hexdump.cursor_offset > 0 {
                     app.hexdump.cursor_offset -= 1;
                     let row = app.hexdump.cursor_offset / 16;
