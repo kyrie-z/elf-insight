@@ -9,7 +9,7 @@ use crate::ui::strings::StringsState;
 use crate::ui::search::SearchState;
 
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, MouseEventKind},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -215,13 +215,57 @@ fn render(f: &mut Frame, app: &mut App) {
 
 fn handle_events(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     if event::poll(std::time::Duration::from_millis(16))? {
-        if let Event::Key(key) = event::read()? {
-            if key.kind == KeyEventKind::Press {
-                handle_key(app, key.code);
+        match event::read()? {
+            Event::Key(key) => {
+                if key.kind == KeyEventKind::Press {
+                    handle_key(app, key.code);
+                }
             }
+            Event::Mouse(mouse) => {
+                handle_mouse(app, mouse);
+            }
+            _ => {}
         }
     }
     Ok(())
+}
+
+fn handle_mouse(app: &mut App, mouse: crossterm::event::MouseEvent) {
+    match mouse.kind {
+        MouseEventKind::ScrollDown => {
+            scroll_detail(app, 3);
+        }
+        MouseEventKind::ScrollUp => {
+            scroll_detail(app, -3);
+        }
+        MouseEventKind::Down(_) => {
+            // Click on right side (column > 30%) switches focus to detail
+            app.focus = Focus::Detail;
+        }
+        _ => {}
+    }
+}
+
+fn scroll_detail(app: &mut App, delta: isize) {
+    if delta > 0 {
+        let d = delta as usize;
+        match app.current_view {
+            DetailView::Overview => app.overview.scroll += d,
+            DetailView::Hexdump => app.hexdump.scroll += d,
+            DetailView::Disassembly => app.disasm.scroll += d,
+            DetailView::Strings => app.strings.scroll += d,
+            DetailView::StructuredInfo => app.info.scroll += d,
+        }
+    } else {
+        let d = (-delta) as usize;
+        match app.current_view {
+            DetailView::Overview => app.overview.scroll = app.overview.scroll.saturating_sub(d),
+            DetailView::Hexdump => app.hexdump.scroll = app.hexdump.scroll.saturating_sub(d),
+            DetailView::Disassembly => app.disasm.scroll = app.disasm.scroll.saturating_sub(d),
+            DetailView::Strings => app.strings.scroll = app.strings.scroll.saturating_sub(d),
+            DetailView::StructuredInfo => app.info.scroll = app.info.scroll.saturating_sub(d),
+        }
+    }
 }
 
 fn handle_key(app: &mut App, key: KeyCode) {
