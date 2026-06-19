@@ -75,6 +75,25 @@ pub fn do_search(app: &mut App) {
             }
         }
     } else {
+        // LayoutMap search — find region by name and jump to it
+        if matches!(app.current_view, DetailView::LayoutMap) {
+            let regions = crate::ui::layout_map::build_regions(&app.data);
+            for (i, region) in regions.iter().enumerate() {
+                if region.label.to_lowercase().contains(&query.to_lowercase()) {
+                    app.search.results.push(i);
+                }
+            }
+            if !app.search.results.is_empty() {
+                app.search.current_result = 0;
+                if let Some(&pos) = app.search.results.get(0) {
+                    app.layout_map.selected_row = pos;
+                }
+            } else {
+                app.search.no_matches_timer = 120;
+            }
+            return;
+        }
+
         match app.current_view {
             DetailView::Overview => {
                 for (i, line) in build_overview_lines(app).iter().enumerate() {
@@ -86,8 +105,8 @@ pub fn do_search(app: &mut App) {
             DetailView::Disassembly => {
                 if let Some(disasm) = &app.disasm_cache {
                     for (i, insn) in disasm.all_instructions.iter().enumerate() {
-                        if insn.mnemonic.contains(&query)
-                            || insn.operands.contains(&query)
+                        if insn.mnemonic.to_lowercase().contains(&query.to_lowercase())
+                            || insn.operands.to_lowercase().contains(&query.to_lowercase())
                         {
                             app.search.results.push(i);
                         }
@@ -134,9 +153,27 @@ fn apply_search_result(app: &mut App) {
             }
             DetailView::Hexdump => {
                 app.hexdump.scroll = pos / 16;
+                app.hexdump.cursor_offset = pos;
             }
             DetailView::Disassembly => {
-                app.disasm.scroll = pos;
+                if let Some(disasm) = &app.disasm_cache {
+                    if pos < disasm.all_instructions.len() {
+                        let target_insn = &disasm.all_instructions[pos];
+                        for (fi, func) in disasm.functions.iter().enumerate() {
+                            if target_insn.address >= func.start_addr && target_insn.address < func.end_addr {
+                                let local_idx = func.instructions.iter()
+                                    .position(|i| i.address == target_insn.address)
+                                    .unwrap_or(0);
+                                app.disasm.selected_function = fi;
+                                app.disasm.scroll = local_idx;
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+            DetailView::LayoutMap => {
+                app.layout_map.selected_row = pos;
             }
             _ => {}
         }
@@ -155,14 +192,37 @@ fn get_current_section(app: &App) -> Option<&crate::elf::parser::SectionInfo> {
 fn build_overview_lines(app: &App) -> Vec<String> {
     let data = &app.data;
     let mut lines = Vec::new();
-    lines.push(format!("ELF Header Magic: {:02x?}", &data.raw_bytes[..16]));
-    lines.push(format!("{} {} {}", data.elf_type, data.machine, data.os_abi));
-    lines.push(format!("Entry: 0x{:x}", data.entry));
+
+    lines.push(format!("ELF Header"));
+    let magic_hex: Vec<String> = data.raw_bytes[..16].iter().map(|b| format!("{:02x}", b)).collect();
+    lines.push(format!("  Magic:   [{}]", magic_hex.join(", ")));
+    lines.push(format!("  Class:   {}", if data.class == 2 { "ELF64" } else { "ELF32" }));
+    lines.push(format!("  Data:    {}", if data.data == 1 { "2's complement, little endian" } else { "2's complement, big endian" }));
+    lines.push(format!("  Version: {} (current)", data.version));
+    lines.push(format!("  OS/ABI:  {}", data.os_abi));
+    let type_display = if data.is_pie {
+        format!("{} (PIE executable)", data.elf_type)
+    } else {
+        data.elf_type.clone()
+    };
+    lines.push(format!("  Type:    {}", type_display));
+    lines.push(format!("  Machine: {}", data.machine));
+    lines.push(format!("  Entry:   0x{:x}", data.entry));
+    lines.push(format!("  PH off:  0x{:x} ({} entries, {} bytes each)", data.phoff, data.phnum, data.phentsize));
+    lines.push(format!("  SH off:  0x{:x} ({} entries, {} bytes each)", data.shoff, data.shnum, data.shentsize));
+    lines.push(format!("  Flags:   0x{:x}", data.flags));
+    lines.push(String::new());
+
+    lines.push(format!("[Nr] Name                  Type       Address    Offset    Size      Flags"));
     for s in &data.sections {
-        lines.push(format!("{} {} {:?}", s.name, s.ty, s.addr));
+        let name = if s.name.len() > 20 { format!("{:.20}", s.name) } else { format!("{:20}", s.name) };
+        lines.push(format!("[{:2}] {} {:10} 0x{:08x} 0x{:06x} 0x{:06x} {:3}", s.index, name, s.ty, s.addr, s.offset, s.size, s.flags));
     }
+    lines.push(String::new());
+
+    lines.push(format!("Program Headers:  Type       Offset   VirtAddr  PhysAddr  FileSiz  MemSiz   Flg Align"));
     for s in &data.segments {
-        lines.push(format!("{} {:?}", s.ty, s.vaddr));
+        lines.push(format!("  {:14} 0x{:06x} 0x{:08x} 0x{:08x} 0x{:06x} 0x{:06x} {:3} 0x{:x}", s.ty, s.offset, s.vaddr, s.paddr, s.filesz, s.memsz, s.flags, s.align));
     }
     lines
 }

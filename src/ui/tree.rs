@@ -103,6 +103,16 @@ impl TreeState {
     }
 
     pub fn select_node(&mut self, target: &TreeNodeType) {
+        // Ensure parent groups are expanded
+        for top_node in &mut self.nodes {
+            for child in &mut top_node.children {
+                if &child.node_type == target {
+                    top_node.expanded = true;
+                    break;
+                }
+            }
+        }
+        self.rebuild_flat_list();
         let flat = self.collect_flat();
         for (i, (node, _, _)) in flat.iter().enumerate() {
             if &node.node_type == target {
