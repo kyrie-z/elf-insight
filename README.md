@@ -1,8 +1,16 @@
 # ELF Insight
 
+[English](#english) | [中文](#chinese)
+
 一个基于 Rust + Ratatui 的终端 ELF 文件查看器，vi/less 风格操作，支持 hexdump、反汇编、字符串、动态链接条目等解析。
 
-## 功能
+[![screenshot](screenshot.png)](screenshot.png)
+
+---
+
+## <a name="chinese"></a>中文
+
+### 功能
 
 - **Overview** — 类似 `readelf -WSlh` 的 ELF 结构全景视图
 - **Layout Map** — 竖排表格展示文件布局，颜色区分 ELF Header / PHDR / SHDR / Code / Data / 未映射区域，支持 Enter 跳转
@@ -13,16 +21,16 @@
 - **搜索** — `/` 搜索，结果高亮，`n`/`N` 跳转，`Esc` 清除
 - **视图切换** — `m` 键在 Hexdump / Disassembly / Strings / Dynamic 之间切换
 
-## 安装
+### 安装
 
 ```bash
-git clone https://github.com/your-username/elf-insight.git
+git clone https://github.com/kyrie-z/elf-insight.git
 cd elf-insight
 cargo build --release
 ./target/release/elf-insight <elf-file>
 ```
 
-## 快捷键
+### 快捷键
 
 | 快捷键 | 功能 |
 |--------|------|
@@ -41,7 +49,7 @@ cargo build --release
 | `?` / `H` | 帮助面板 |
 | `q` | 退出 |
 
-## 架构
+### 架构
 
 ```
 src/
@@ -63,7 +71,7 @@ src/
     └── help.rs       # 帮助面板
 ```
 
-## 依赖
+### 依赖
 
 | Crate | 用途 |
 |-------|------|
@@ -72,7 +80,7 @@ src/
 | `goblin` 0.9 | ELF 解析 |
 | `iced-x86` 1.21 | x86-64 反汇编 |
 
-## 开发
+### 开发
 
 ```bash
 cargo run -- /bin/ls        # 运行
@@ -80,13 +88,93 @@ cargo test                  # 运行测试
 cargo build --release       # 发布构建
 ```
 
-## 测试
+## <a name="english"></a>English
+
+### Features
+
+- **Overview** — ELF structure summary like `readelf -WSlh`
+- **Layout Map** — Vertical table with colored bars showing file layout (ELF Header / PHDR / SHDR / Code / Data / unmapped regions), Enter to jump
+- **Hexdump** — Hex + ASCII dual-column view with cursor highlight and search
+- **Disassembly** — Function list + instruction disassembly, split-panel with cursor highlight
+- **Strings** — Extract printable strings from sections
+- **Dynamic** — Parse `.dynamic` section entries
+- **Search** — `/` search with highlight, `n`/`N` navigation, `Esc` to clear
+- **View switching** — `m` key to cycle between Hexdump / Disassembly / Strings / Dynamic
+
+### Installation
+
+```bash
+git clone https://github.com/kyrie-z/elf-insight.git
+cd elf-insight
+cargo build --release
+./target/release/elf-insight <elf-file>
+```
+
+### Keybindings
+
+| Key | Action |
+|-----|--------|
+| `j` / `k` / `↑↓` | Line scroll |
+| `gg` / `G` | Jump to top / bottom |
+| `u` / `d` | Half-page up / down |
+| `PgUp` / `PgDn` | Full page up / down |
+| `Home` / `End` | Jump to top / bottom |
+| `Tab` | Switch tree ↔ detail panel |
+| `h` / `←` | Collapse node (tree) / Left cursor (hex) |
+| `l` / `→` / `Enter` | Expand node (tree) / Right cursor (hex) |
+| `m` | Cycle section view mode |
+| `Esc` | Clear search → Back focus → Back jump |
+| `/` | Open search bar |
+| `n` / `N` | Next / previous match |
+| `?` / `H` | Help panel |
+| `q` | Quit |
+
+### Architecture
+
+```
+src/
+├── main.rs           # Entry point, CLI argument parsing
+├── app.rs            # App state machine, event dispatch, view routing
+├── elf/
+│   ├── parser.rs     # goblin wrapper, ElfData internal structures
+│   └── disasm.rs     # iced-x86 wrapper, DisasmResult + function detection
+└── ui/
+    ├── mod.rs        # Main layout (left/right split)
+    ├── tree.rs       # Left panel navigation tree
+    ├── overview.rs   # Overview view (readelf style)
+    ├── layout_map.rs # ELF layout map view
+    ├── info.rs       # Structured info view (field tables)
+    ├── hexdump.rs    # Hexdump view (cursor highlight)
+    ├── disasm.rs     # Disassembly view (function list + instructions)
+    ├── strings.rs    # String extraction view
+    ├── search.rs     # Search bar + search logic
+    └── help.rs       # Help panel
+```
+
+### Dependencies
+
+| Crate | Purpose |
+|-------|---------|
+| `ratatui` 0.29 | TUI framework |
+| `crossterm` 0.28 | Terminal backend |
+| `goblin` 0.9 | ELF parsing |
+| `iced-x86` 1.21 | x86-64 disassembly |
+
+### Development
+
+```bash
+cargo run -- /bin/ls        # Run
+cargo test                  # Run tests
+cargo build --release       # Release build
+```
+
+### Testing
 
 ```bash
 cargo test
 ```
 
-29 个单元测试覆盖 ELF 解析、反汇编、字符串提取、树状态管理。
+29 unit tests covering ELF parsing, disassembly, string extraction, and tree state management.
 
 ## License
 
