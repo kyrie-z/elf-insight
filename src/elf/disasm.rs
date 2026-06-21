@@ -120,9 +120,21 @@ pub fn merge_symbols_with_functions(
         if !matches!(sym.ty, crate::elf::parser::SymbolType::Function) {
             continue;
         }
-
+        let mut matched = false;
+        // Exact address match
         for func in &mut functions {
-            if func.start_addr == sym.addr || func.name == sym.name {
+            if func.start_addr == sym.addr {
+                func.name = sym.name.clone();
+                matched = true;
+                break;
+            }
+        }
+        if matched {
+            continue;
+        }
+        // Symbol falls within a function's range
+        for func in &mut functions {
+            if sym.addr >= func.start_addr && sym.addr < func.end_addr {
                 func.name = sym.name.clone();
                 break;
             }
