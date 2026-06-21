@@ -313,12 +313,18 @@ fn scroll_bottom(app: &mut App) {
 }
 
 fn sync_hex_cursor(app: &mut App) {
-    if matches!(app.current_view, DetailView::Hexdump) {
-        if let Some(section) = get_hex_section(app) {
-            let row = app.hexdump.scroll.min(section.data.len().saturating_sub(1) / 16);
-            app.hexdump.cursor_offset = row * 16;
-        }
+    if !matches!(app.current_view, DetailView::Hexdump) {
+        return;
     }
+    let data_len = if app.raw_view_size > 0 {
+        app.raw_view_size as usize
+    } else if let Some(section) = get_hex_section(app) {
+        section.data.len()
+    } else {
+        return;
+    };
+    let row = app.hexdump.scroll.min(data_len.saturating_sub(1) / 16);
+    app.hexdump.cursor_offset = row * 16;
 }
 
 fn handle_key(app: &mut App, key: KeyCode) {
