@@ -209,7 +209,7 @@ fn render_segment(app: &App, index: usize) -> Vec<String> {
         .filter(|s| {
             seg.memsz > 0
                 && s.addr >= seg.vaddr
-                && s.addr <= seg.vaddr + seg.memsz
+                && s.addr + s.size <= seg.vaddr + seg.memsz
                 && s.size > 0
                 && s.addr > 0
         })
