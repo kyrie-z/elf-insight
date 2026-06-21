@@ -47,6 +47,16 @@ pub struct App {
     pub prev_view: Option<DetailView>,
     pub prev_node: Option<TreeNodeType>,
     pub disasm_subfocus: DisasmSubFocus,
+    pub section_view_mode: Option<SectionViewMode>,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub enum SectionViewMode {
+    Hexdump,
+    Disassembly,
+    Strings,
+    Dynamic,
+    Info,
 }
 
 #[derive(PartialEq, Eq)]
@@ -85,6 +95,7 @@ impl App {
             prev_view: None,
             prev_node: None,
             disasm_subfocus: DisasmSubFocus::FuncList,
+            section_view_mode: None,
         }
     }
 }
@@ -544,6 +555,12 @@ fn handle_key(app: &mut App, key: KeyCode) {
                 app.tree.collapse_current();
             }
         }
+        KeyCode::Char('m') => {
+            app.pending_g = false;
+            if app.focus == Focus::Detail {
+                cycle_section_view(app);
+            }
+        }
         KeyCode::Enter => {
             app.pending_g = false;
             if app.focus == Focus::Detail && matches!(app.current_view, DetailView::LayoutMap) {
@@ -673,6 +690,62 @@ fn get_hex_section(app: &App) -> Option<&crate::elf::parser::SectionInfo> {
     }
 }
 
+fn available_modes(section: &crate::elf::parser::SectionInfo) -> Vec<SectionViewMode> {
+    let mut modes = vec![SectionViewMode::Info];
+    if section.size > 0 && section.offset > 0 {
+        modes.push(SectionViewMode::Hexdump);
+        if section.flags.contains('X') {
+            modes.push(SectionViewMode::Disassembly);
+        }
+        if section.name.contains("str") {
+            modes.push(SectionViewMode::Strings);
+        }
+        if section.name == ".dynamic" {
+            modes.push(SectionViewMode::Dynamic);
+        }
+    }
+    modes
+}
+
+fn cycle_section_view(app: &mut App) {
+    if let Some(TreeNodeType::SectionBody { index }) = &app.tree.selected_node {
+        let section = &app.data.sections[*index];
+        let modes = available_modes(section);
+        if let Some(cur) = &app.section_view_mode {
+            if let Some(pos) = modes.iter().position(|m| m == cur) {
+                let next = (pos + 1) % modes.len();
+                app.section_view_mode = Some(modes[next].clone());
+                switch_section_view(app, *index, &modes[next]);
+            }
+        }
+    }
+}
+
+fn switch_section_view(app: &mut App, index: usize, mode: &SectionViewMode) {
+    match mode {
+        SectionViewMode::Hexdump => app.current_view = DetailView::Hexdump,
+        SectionViewMode::Disassembly => {
+            let section = &app.data.sections[index];
+            if app.current_disasm_section != Some(index) && section.flags.contains('X') {
+                let disasm = disassemble_section(&section.data, section.addr);
+                let merged = merge_symbols_with_functions(&app.data.symbols, disasm.functions);
+                app.disasm_cache = Some(DisasmResult {
+                    functions: merged,
+                    all_instructions: disasm.all_instructions,
+                    bitness: disasm.bitness,
+                });
+                app.current_disasm_section = Some(index);
+                app.disasm.selected_function = 0;
+                app.disasm.scroll = 0;
+            }
+            app.current_view = DetailView::Disassembly;
+        }
+        SectionViewMode::Strings => app.current_view = DetailView::Strings,
+        SectionViewMode::Dynamic => app.current_view = DetailView::StructuredInfo,
+        SectionViewMode::Info => app.current_view = DetailView::StructuredInfo,
+    }
+}
+
 fn update_view(app: &mut App) {
     if let Some(ref node_type) = app.tree.selected_node {
         app.current_view = match node_type {
@@ -685,23 +758,27 @@ fn update_view(app: &mut App) {
             TreeNodeType::SectionHeader { .. } => DetailView::StructuredInfo,
             TreeNodeType::SectionBody { index } => {
                 let section = &app.data.sections[*index];
-                if section.name == ".text" || section.flags.contains('X') {
-                    if app.current_disasm_section != Some(*index) {
-                        let disasm = disassemble_section(&section.data, section.addr);
-                        let merged = merge_symbols_with_functions(&app.data.symbols, disasm.functions);
-                        app.disasm_cache = Some(DisasmResult {
-                            functions: merged,
-                            all_instructions: disasm.all_instructions,
-                            bitness: disasm.bitness,
-                        });
-                        app.current_disasm_section = Some(*index);
-                        app.disasm.selected_function = 0;
-                        app.disasm.scroll = 0;
-                    }
-                    DetailView::Disassembly
-                } else if section.name.contains("str") {
-                    DetailView::Strings
+                // Default to Hexdump for all sections with data
+                if section.size == 0 || section.offset == 0 {
+                    app.section_view_mode = Some(SectionViewMode::Info);
+                    DetailView::StructuredInfo
                 } else {
+                    app.section_view_mode = Some(SectionViewMode::Hexdump);
+                    // Pre-load disassembly for executable sections
+                    if section.flags.contains('X') {
+                        if app.current_disasm_section != Some(*index) {
+                            let disasm = disassemble_section(&section.data, section.addr);
+                            let merged = merge_symbols_with_functions(&app.data.symbols, disasm.functions);
+                            app.disasm_cache = Some(DisasmResult {
+                                functions: merged,
+                                all_instructions: disasm.all_instructions,
+                                bitness: disasm.bitness,
+                            });
+                            app.current_disasm_section = Some(*index);
+                            app.disasm.selected_function = 0;
+                            app.disasm.scroll = 0;
+                        }
+                    }
                     DetailView::Hexdump
                 }
             }

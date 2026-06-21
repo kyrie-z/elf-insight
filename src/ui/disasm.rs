@@ -125,7 +125,7 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         } else {
             func.start_addr
         };
-        format!("{} (0x{:x}-0x{:x}) 0x{:x}", func.name, func.start_addr, func.end_addr, cursor_addr)
+        format!("{} (0x{:x}-0x{:x}) [Disasm] 0x{:x}", func.name, func.start_addr, func.end_addr, cursor_addr)
     } else {
         "Disassembly".into()
     };

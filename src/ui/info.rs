@@ -80,7 +80,19 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         Style::default()
     };
 
-    let p = Paragraph::new(text_lines).block(Block::default().borders(Borders::ALL).title("Details").border_style(border_style));
+    let title = match &app.tree.selected_node {
+        Some(TreeNodeType::SectionBody { index }) => {
+            let s = &app.data.sections[*index];
+            if s.name == ".dynamic" && !app.data.dynamic.is_empty() {
+                format!("{} - {} entries [Dynamic]", s.name, app.data.dynamic.len())
+            } else {
+                format!("Details [Info]")
+            }
+        }
+        _ => "Details".into(),
+    };
+
+    let p = Paragraph::new(text_lines).block(Block::default().borders(Borders::ALL).title(title).border_style(border_style));
     f.render_widget(p, area);
 
     let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)

@@ -74,7 +74,7 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         })
         .collect();
 
-    let title = format!("{} - {} strings", section.name, strings.len());
+    let title = format!("{} - {} strings [Strings]", section.name, strings.len());
 
     let border_style = if app.focus == Focus::Detail {
         Style::default().fg(Color::Cyan)

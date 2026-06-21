@@ -140,7 +140,7 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     let sector_end = section.addr + section.size;
 
     let title = format!(
-        "{} - 0x{:x}-0x{:x}  cursor: 0x{:x}",
+        "{} - 0x{:x}-0x{:x} [Hexdump] 0x{:x}",
         section.name,
         section.addr,
         sector_end,
