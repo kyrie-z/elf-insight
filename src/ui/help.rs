@@ -3,8 +3,8 @@ use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 
 pub fn render(f: &mut Frame, _area: Rect) {
     let help_text = vec![
-        " less-style Navigation",
-        " ────────────────────",
+        " Navigation (less-style)",
+        " ──────────────────────",
         "  ↑↓ / jk   Line up / down",
         "  gg        Jump to top",
         "  G         Jump to bottom",
@@ -14,38 +14,37 @@ pub fn render(f: &mut Frame, _area: Rect) {
         "  Home/End  Jump to top / bottom",
         "  PgUp/Dn   Page up / down",
         "",
-        " Panels",
-        " ──────",
+        " Panels & Tree",
+        " ─────────────",
         "  Tab       Switch tree ↔ detail",
-        "  ←→        Hex cursor / Disasm panel switch",
-        "  h / l     Hexdump byte cursor",
-        "  Enter     Expand tree / Enter layout region",
-        "  Esc       Back (disasm focus / layout jump)",
+        "  Enter     Expand node / Enter layout region",
+        "  ←         Collapse node (tree)",
+        "  ←→        Hex byte cursor / Disasm panel switch",
+        "  h / l     Hexdump byte cursor (left/right)",
         "  m         Cycle section view mode",
+        "  Esc       Clear search → Back to func list → Back",
         "",
         " Search",
         " ──────",
         "  /         Open search bar",
-        "  Enter     Execute search",
+        "  Enter     Execute search (in search bar)",
         "  n / N     Next / previous result",
-        "  Esc       Close search",
+        "  Esc       Close search bar / Clear highlights",
         "",
         " Disassembly",
         " ───────────",
         "  ↑↓/jk    Switch function (func list focus)",
         "  ←→        Switch panel (func list ↔ instructions)",
-        "  Enter     Jump to function start",
         "  Esc       Back to func list",
         "",
-        " Global",
-        " ──────",
-        "  q         Quit",
-        "  ?         Toggle this help",
-        "  Esc / q   Close help",
+        " Help & Quit",
+        " ───────────",
+        "  ? / H     Toggle this help",
+        "  q / Esc   Close help / Quit",
     ]
     .join("\n");
 
-    let popup_area = centered_rect(58, 90, f.area());
+    let popup_area = centered_rect(60, 90, f.area());
 
     let p = Paragraph::new(help_text)
         .block(Block::default().borders(Borders::ALL).title(" Help "))

@@ -475,10 +475,6 @@ fn handle_key(app: &mut App, key: KeyCode) {
             if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Hexdump) {
                 if app.hexdump.cursor_offset > 0 {
                     app.hexdump.cursor_offset -= 1;
-                    let row = app.hexdump.cursor_offset / 16;
-                    if row < app.hexdump.scroll {
-                        scroll_up(app, 1);
-                    }
                 }
             }
         }
