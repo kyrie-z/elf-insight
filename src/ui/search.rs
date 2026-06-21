@@ -1,4 +1,5 @@
 use crate::app::{App, DetailView};
+use std::collections::HashSet;
 use ratatui::prelude::*;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
@@ -129,15 +130,31 @@ pub fn do_search(app: &mut App) {
             DetailView::Hexdump => {
                 if let Some(section_index) = get_current_section_index(app) {
                     let data = &app.data.sections[section_index].data;
+                    let query_bytes = query.as_bytes();
                     let mut results = Vec::new();
-                    for (i, chunk) in data.chunks(16).enumerate() {
+                    // Search raw bytes for exact match
+                    for start in 0..data.len().saturating_sub(query_bytes.len().saturating_sub(1)) {
+                        if data[start..].starts_with(query_bytes) {
+                            if !results.contains(&start) {
+                                results.push(start);
+                            }
+                        }
+                    }
+                    // Also search case-insensitive ASCII
+                    let query_lower = query.to_lowercase();
+                    let mut seen_rows = std::collections::HashSet::new();
+                    for (row, chunk) in data.chunks(16).enumerate() {
                         let ascii: String = chunk.iter().map(|&b| {
                             if b.is_ascii_graphic() || b == b' ' { b as char } else { '.' }
                         }).collect();
-                        if ascii.to_lowercase().contains(&query.to_lowercase()) {
-                            results.push(i);
+                        if ascii.to_lowercase().contains(&query_lower) {
+                            if seen_rows.insert(row) {
+                                results.push(row * 16);
+                            }
                         }
                     }
+                    results.sort();
+                    results.dedup();
                     app.search.results = results;
                 }
             }
@@ -192,9 +209,8 @@ fn apply_search_result(app: &mut App) {
                 app.overview.selected_line = pos;
             }
             DetailView::Hexdump => {
-                app.hexdump.scroll = pos;
-                // Set cursor to start of the matched row
-                app.hexdump.cursor_offset = pos * 16;
+                app.hexdump.cursor_offset = pos;
+                app.hexdump.scroll = pos / 16;
             }
             DetailView::Disassembly => {
                 if let Some(disasm) = &app.disasm_cache {
