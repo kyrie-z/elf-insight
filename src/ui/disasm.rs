@@ -128,12 +128,10 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         }
     }
 
+    let content_len = (total_insns as u16).max(1);
     let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
         .begin_symbol(Some("↑"))
-        .end_symbol(Some("↓"))
-        .track_symbol(Some("│"))
-        .thumb_symbol("█");
-    let content_len = (total_insns as u16).max(1);
+        .end_symbol(Some("↓"));
     let mut scrollbar_state = ScrollbarState::new(content_len as usize)
         .position(window_start);
     f.render_stateful_widget(scrollbar, chunks[1], &mut scrollbar_state);
