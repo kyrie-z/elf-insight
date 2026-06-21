@@ -279,52 +279,41 @@ fn is_line_view(app: &App) -> bool {
 fn scroll_up(app: &mut App, n: usize) {
     if is_line_view(app) {
         *sel_line_mut(app) = sel_line_mut(app).saturating_sub(n);
+    } else if matches!(app.current_view, DetailView::Hexdump) {
+        app.hexdump.cursor_offset = app.hexdump.cursor_offset.saturating_sub(n * 16);
     } else {
         *scroll_mut(app) = scroll_mut(app).saturating_sub(n);
-        sync_hex_cursor(app);
     }
 }
 
 fn scroll_down(app: &mut App, n: usize) {
     if is_line_view(app) {
         *sel_line_mut(app) += n;
+    } else if matches!(app.current_view, DetailView::Hexdump) {
+        app.hexdump.cursor_offset += n * 16;
     } else {
         *scroll_mut(app) += n;
-        sync_hex_cursor(app);
     }
 }
 
 fn scroll_top(app: &mut App) {
     if is_line_view(app) {
         *sel_line_mut(app) = 0;
+    } else if matches!(app.current_view, DetailView::Hexdump) {
+        app.hexdump.cursor_offset = 0;
     } else {
         *scroll_mut(app) = 0;
-        sync_hex_cursor(app);
     }
 }
 
 fn scroll_bottom(app: &mut App) {
     if is_line_view(app) {
         *sel_line_mut(app) = usize::MAX;
+    } else if matches!(app.current_view, DetailView::Hexdump) {
+        app.hexdump.cursor_offset = usize::MAX;
     } else {
         *scroll_mut(app) = usize::MAX;
-        sync_hex_cursor(app);
     }
-}
-
-fn sync_hex_cursor(app: &mut App) {
-    if !matches!(app.current_view, DetailView::Hexdump) {
-        return;
-    }
-    let data_len = if app.raw_view_size > 0 {
-        app.raw_view_size as usize
-    } else if let Some(section) = get_hex_section(app) {
-        section.data.len()
-    } else {
-        return;
-    };
-    let row = app.hexdump.scroll.min(data_len.saturating_sub(1) / 16);
-    app.hexdump.cursor_offset = row * 16;
 }
 
 fn handle_key(app: &mut App, key: KeyCode) {
@@ -427,13 +416,7 @@ fn handle_key(app: &mut App, key: KeyCode) {
             } else if app.focus == Focus::Detail {
                 match app.current_view {
                     DetailView::Hexdump => {
-                        if app.hexdump.cursor_offset >= 16 {
-                            app.hexdump.cursor_offset -= 16;
-                        }
-                        let row = app.hexdump.cursor_offset / 16;
-                        if row < app.hexdump.scroll {
-                            scroll_up(app, 1);
-                        }
+                        scroll_up(app, 1);
                     }
                     DetailView::Disassembly => {
                         if app.disasm_subfocus == DisasmSubFocus::FuncList {
@@ -462,12 +445,7 @@ fn handle_key(app: &mut App, key: KeyCode) {
             } else if app.focus == Focus::Detail {
                 match app.current_view {
                     DetailView::Hexdump => {
-                        app.hexdump.cursor_offset += 16;
-                        let row = app.hexdump.cursor_offset / 16;
-                        let visible_rows = 20;
-                        if row >= app.hexdump.scroll.saturating_add(visible_rows - 1) {
-                            scroll_down(app, 1);
-                        }
+                        scroll_down(app, 1);
                     }
                     DetailView::Disassembly => {
                         if app.disasm_subfocus == DisasmSubFocus::FuncList {
@@ -508,22 +486,12 @@ fn handle_key(app: &mut App, key: KeyCode) {
             app.pending_g = false;
             if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Hexdump) {
                 app.hexdump.cursor_offset += 1;
-                let row = app.hexdump.cursor_offset / 16;
-                let visible_rows = 20;
-                if row >= app.hexdump.scroll.saturating_add(visible_rows - 1) {
-                    scroll_down(app, 1);
-                }
             }
         }
         KeyCode::Right => {
             app.pending_g = false;
             if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Hexdump) {
                 app.hexdump.cursor_offset += 1;
-                let row = app.hexdump.cursor_offset / 16;
-                let visible_rows = 20;
-                if row >= app.hexdump.scroll.saturating_add(visible_rows - 1) {
-                    scroll_down(app, 1);
-                }
             } else if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Disassembly) {
                 if app.disasm_subfocus == DisasmSubFocus::FuncList {
                     app.disasm_subfocus = DisasmSubFocus::Instructions;
@@ -537,10 +505,6 @@ fn handle_key(app: &mut App, key: KeyCode) {
             if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Hexdump) {
                 if app.hexdump.cursor_offset > 0 {
                     app.hexdump.cursor_offset -= 1;
-                    let row = app.hexdump.cursor_offset / 16;
-                    if row < app.hexdump.scroll {
-                        scroll_up(app, 1);
-                    }
                 }
             } else if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Disassembly) {
                 if app.disasm_subfocus == DisasmSubFocus::Instructions {
