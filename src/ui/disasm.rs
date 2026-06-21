@@ -128,14 +128,6 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         }
     }
 
-    let content_len = (total_insns as u16).max(1);
-    let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
-        .begin_symbol(Some("↑"))
-        .end_symbol(Some("↓"));
-    let mut scrollbar_state = ScrollbarState::new(content_len as usize)
-        .position(window_start);
-    f.render_stateful_widget(scrollbar, chunks[1], &mut scrollbar_state);
-
     let title = if let Some(func) = disasm.functions.get(app.disasm.selected_function) {
         let cursor_global = func.start_idx + app.disasm.scroll;
         let cursor_addr = if cursor_global < disasm.all_instructions.len() {
@@ -156,4 +148,12 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
 
     let p = Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title(title).border_style(insn_border_style));
     f.render_widget(p, chunks[1]);
+
+    let content_len = (total_insns as u16).max(1);
+    let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+        .begin_symbol(Some("↑"))
+        .end_symbol(Some("↓"));
+    let mut scrollbar_state = ScrollbarState::new(content_len as usize)
+        .position(window_start);
+    f.render_stateful_widget(scrollbar, chunks[1], &mut scrollbar_state);
 }
