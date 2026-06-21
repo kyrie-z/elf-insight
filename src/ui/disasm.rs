@@ -150,15 +150,12 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     f.render_widget(p, chunks[1]);
 
     let visible_rows = chunks[1].height.saturating_sub(2) as usize;
-    let content_len = total_insns.max(1);
-    let viewport = if total_insns <= visible_rows { 0 } else { visible_rows.min(total_insns) };
-    let max_pos = total_insns.saturating_sub(visible_rows);
-    let pos = window_start.min(max_pos);
+    let content_len = total_insns.saturating_sub(visible_rows).max(1);
+    let pos = window_start.min(content_len);
     let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
         .begin_symbol(Some("↑"))
         .end_symbol(Some("↓"));
     let mut scrollbar_state = ScrollbarState::new(content_len)
-        .position(pos)
-        .viewport_content_length(viewport);
+        .position(pos);
     f.render_stateful_widget(scrollbar, chunks[1], &mut scrollbar_state);
 }
