@@ -149,11 +149,14 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     let p = Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title(title).border_style(insn_border_style));
     f.render_widget(p, chunks[1]);
 
-    let content_len = (total_insns as u16).max(1);
+    let visible_rows = chunks[1].height.saturating_sub(2) as usize;
+    let content_len = total_insns.max(1);
+    let viewport = if total_insns <= visible_rows { 0 } else { visible_rows.min(total_insns) };
     let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
         .begin_symbol(Some("↑"))
         .end_symbol(Some("↓"));
-    let mut scrollbar_state = ScrollbarState::new(content_len as usize)
-        .position(window_start);
+    let mut scrollbar_state = ScrollbarState::new(content_len)
+        .position(window_start)
+        .viewport_content_length(viewport);
     f.render_stateful_widget(scrollbar, chunks[1], &mut scrollbar_state);
 }
