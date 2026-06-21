@@ -4,6 +4,23 @@ use ratatui::prelude::*;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
 
+fn get_current_modes(app: &App) -> String {
+    match &app.tree.selected_node {
+        Some(crate::ui::tree::TreeNodeType::SectionBody { index }) => {
+            let section = &app.data.sections[*index];
+            let modes = crate::app::available_modes(section);
+            let mode_str: Vec<&str> = modes.iter().map(|m| match m {
+                crate::app::SectionViewMode::Hexdump => "Hexdump",
+                crate::app::SectionViewMode::Disassembly => "Disasm",
+                crate::app::SectionViewMode::Strings => "Strings",
+                crate::app::SectionViewMode::Dynamic => "Dynamic",
+            }).collect();
+            mode_str.join("|")
+        }
+        _ => String::new(),
+    }
+}
+
 pub struct DisasmState {
     pub selected_function: usize,
     pub scroll: usize,
@@ -135,7 +152,8 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         } else {
             func.start_addr
         };
-        format!("{} (0x{:x}-0x{:x}) [Disasm] 0x{:x}", func.name, func.start_addr, func.end_addr, cursor_addr)
+        let modes = get_current_modes(app);
+    format!("{} (0x{:x}-0x{:x}) [Disasm] {}  0x{:x}", func.name, func.start_addr, func.end_addr, modes, cursor_addr)
     } else {
         "Disassembly".into()
     };

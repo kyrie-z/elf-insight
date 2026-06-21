@@ -74,7 +74,21 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         })
         .collect();
 
-    let title = format!("{} - {} strings [Strings]", section.name, strings.len());
+    let modes = match &app.tree.selected_node {
+        Some(crate::ui::tree::TreeNodeType::SectionBody { index }) => {
+            let section = &app.data.sections[*index];
+            let modes = crate::app::available_modes(section);
+            let mode_str: Vec<&str> = modes.iter().map(|m| match m {
+                crate::app::SectionViewMode::Hexdump => "Hexdump",
+                crate::app::SectionViewMode::Disassembly => "Disasm",
+                crate::app::SectionViewMode::Strings => "Strings",
+                crate::app::SectionViewMode::Dynamic => "Dynamic",
+            }).collect();
+            mode_str.join("|")
+        }
+        _ => String::new(),
+    };
+    let title = format!("{} - {} strings [Strings] {}", section.name, strings.len(), modes);
 
     let border_style = if app.focus == Focus::Detail {
         Style::default().fg(Color::Cyan)

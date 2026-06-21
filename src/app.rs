@@ -673,7 +673,7 @@ fn get_hex_section(app: &App) -> Option<&crate::elf::parser::SectionInfo> {
     }
 }
 
-fn available_modes(section: &crate::elf::parser::SectionInfo) -> Vec<SectionViewMode> {
+pub fn available_modes(section: &crate::elf::parser::SectionInfo) -> Vec<SectionViewMode> {
     let mut modes = vec![];
     if section.size > 0 && section.offset > 0 {
         modes.push(SectionViewMode::Hexdump);
