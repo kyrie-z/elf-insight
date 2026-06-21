@@ -319,7 +319,7 @@ fn scroll_bottom(app: &mut App) {
 fn handle_key(app: &mut App, key: KeyCode) {
     if app.show_help {
         match key {
-            KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('?') | KeyCode::Char('h') => {
+            KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('?') => {
                 app.show_help = false;
             }
             _ => {}
@@ -381,9 +381,7 @@ fn handle_key(app: &mut App, key: KeyCode) {
         // Help
         KeyCode::Char('?') => app.show_help = true,
         KeyCode::Char('H') => {
-            if app.focus == Focus::Detail {
-                app.show_help = true;
-            }
+            app.show_help = true;
         }
 
         // Search
@@ -476,12 +474,16 @@ fn handle_key(app: &mut App, key: KeyCode) {
                 if app.hexdump.cursor_offset > 0 {
                     app.hexdump.cursor_offset -= 1;
                 }
+            } else if app.focus == Focus::Tree {
+                app.tree.collapse_current();
             }
         }
         KeyCode::Char('l') => {
             app.pending_g = false;
             if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Hexdump) {
                 app.hexdump.cursor_offset += 1;
+            } else if app.focus == Focus::Tree {
+                app.tree.toggle_expand();
             }
         }
         KeyCode::Right => {
