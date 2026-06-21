@@ -537,8 +537,6 @@ fn handle_key(app: &mut App, key: KeyCode) {
             app.pending_g = false;
             if app.focus == Focus::Detail && matches!(app.current_view, DetailView::LayoutMap) {
                 layout_map_enter(app);
-            } else if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Disassembly) {
-                app.disasm.scroll = 0;
             } else if app.focus == Focus::Tree {
                 app.tree.toggle_expand();
             }

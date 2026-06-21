@@ -78,12 +78,12 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     let cursor_style = Style::default().fg(Color::Black).bg(Color::Rgb(200, 200, 100));
 
     let mut lines: Vec<Line> = Vec::new();
-    let mut max_scroll = 0;
-    let mut window_start = 0;
+    let mut total_insns = 0usize;
+    let mut window_start = 0usize;
     if let Some(func) = disasm.functions.get(app.disasm.selected_function) {
-        let total_insns = func.end_idx - func.start_idx;
+        total_insns = func.end_idx - func.start_idx;
         let visible_rows = chunks[1].height.saturating_sub(2) as usize;
-        max_scroll = total_insns.saturating_sub(visible_rows);
+        let max_scroll = total_insns.saturating_sub(visible_rows);
 
         if total_insns == 0 {
             app.disasm.scroll = 0;
@@ -130,8 +130,12 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
 
     let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
         .begin_symbol(Some("↑"))
-        .end_symbol(Some("↓"));
-    let mut scrollbar_state = ScrollbarState::new(max_scroll.max(1)).position(window_start);
+        .end_symbol(Some("↓"))
+        .track_symbol(Some("│"))
+        .thumb_symbol("█");
+    let content_len = (total_insns as u16).max(1);
+    let mut scrollbar_state = ScrollbarState::new(content_len as usize)
+        .position(window_start);
     f.render_stateful_widget(scrollbar, chunks[1], &mut scrollbar_state);
 
     let title = if let Some(func) = disasm.functions.get(app.disasm.selected_function) {
