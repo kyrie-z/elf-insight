@@ -139,20 +139,11 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     let cursor_addr = section.addr + app.hexdump.cursor_offset as u64;
     let sector_end = section.addr + section.size;
 
-    let modes = crate::app::available_modes(section);
-    let mode_str: Vec<&str> = modes.iter().map(|m| match m {
-        crate::app::SectionViewMode::Hexdump => "Hexdump",
-        crate::app::SectionViewMode::Disassembly => "Disasm",
-        crate::app::SectionViewMode::Strings => "Strings",
-        crate::app::SectionViewMode::Dynamic => "Dynamic",
-    }).collect();
-
     let title = format!(
-        "{} - 0x{:x}-0x{:x} [Hexdump] {}  0x{:x}",
+        "{} - 0x{:x}-0x{:x} [Hexdump] 0x{:x}",
         section.name,
         section.addr,
         sector_end,
-        mode_str.join("|"),
         cursor_addr
     );
 

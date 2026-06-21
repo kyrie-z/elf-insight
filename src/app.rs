@@ -119,7 +119,7 @@ fn build_tree(data: &ElfData) -> Vec<TreeNode> {
     });
 
     nodes.push(TreeNode {
-        label: "ELF Header".into(),
+        label: format!("ELF Header (0x0-0x{:x})", data.ehsize),
         node_type: TreeNodeType::ElfHeader,
         depth: 0,
         children: vec![],
@@ -640,27 +640,26 @@ fn handle_key(app: &mut App, key: KeyCode) {
 fn layout_map_enter(app: &mut App) {
     use crate::ui::layout_map::{LayoutTarget, build_regions};
     let regions = build_regions(&app.data);
-    if let Some(region) = regions.get(app.layout_map.selected_row) {
-        if let Some(ref target) = region.target {
-            app.prev_view = Some(DetailView::LayoutMap);
-            app.prev_node = Some(TreeNodeType::LayoutMap);
-            match target {
-                LayoutTarget::ElfHeader => {
-                    app.tree.select_node(&TreeNodeType::ElfHeader);
-                    app.current_view = DetailView::StructuredInfo;
-                }
-                LayoutTarget::ProgramHeaders => {
-                    app.tree.select_node(&TreeNodeType::ProgramHeaders);
-                    app.current_view = DetailView::StructuredInfo;
-                }
-                LayoutTarget::SectionHeaders => {
-                    app.tree.select_node(&TreeNodeType::SectionHeaders);
-                    app.current_view = DetailView::StructuredInfo;
-                }
-                LayoutTarget::SectionBody(index) => {
-                    app.tree.select_node(&TreeNodeType::SectionBody { index: *index });
-                    update_view(app);
-                }
+    let target = regions.get(app.layout_map.selected_row).and_then(|r| r.target.clone());
+    if let Some(target) = target {
+        app.prev_view = Some(DetailView::LayoutMap);
+        app.prev_node = Some(TreeNodeType::LayoutMap);
+        match target {
+            LayoutTarget::ElfHeader => {
+                app.tree.select_node(&TreeNodeType::ElfHeader);
+                app.current_view = DetailView::StructuredInfo;
+            }
+            LayoutTarget::ProgramHeaders => {
+                app.tree.select_node(&TreeNodeType::ProgramHeaders);
+                app.current_view = DetailView::StructuredInfo;
+            }
+            LayoutTarget::SectionHeaders => {
+                app.tree.select_node(&TreeNodeType::SectionHeaders);
+                app.current_view = DetailView::StructuredInfo;
+            }
+            LayoutTarget::SectionBody(index) => {
+                app.tree.select_node(&TreeNodeType::SectionBody { index });
+                update_view(app);
             }
         }
     }
@@ -673,7 +672,7 @@ fn get_hex_section(app: &App) -> Option<&crate::elf::parser::SectionInfo> {
     }
 }
 
-pub fn available_modes(section: &crate::elf::parser::SectionInfo) -> Vec<SectionViewMode> {
+fn available_modes(section: &crate::elf::parser::SectionInfo) -> Vec<SectionViewMode> {
     let mut modes = vec![];
     if section.size > 0 && section.offset > 0 {
         modes.push(SectionViewMode::Hexdump);

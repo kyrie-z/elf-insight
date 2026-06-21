@@ -15,7 +15,7 @@ impl LayoutMapState {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct LayoutRegion {
     pub label: String,
     pub offset: u64,
@@ -24,7 +24,7 @@ pub struct LayoutRegion {
     pub target: Option<LayoutTarget>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum LayoutTarget {
     ElfHeader,
     ProgramHeaders,
@@ -86,7 +86,35 @@ pub fn build_regions(data: &crate::elf::parser::ElfData) -> Vec<LayoutRegion> {
     }
 
     regions.sort_by_key(|r| r.offset);
-    regions
+
+    // Insert gaps for unmapped regions
+    let mut with_gaps = Vec::new();
+    let mut cursor = 0u64;
+    let file_size = data.raw_bytes.len() as u64;
+    for region in regions {
+        if region.offset > cursor {
+            with_gaps.push(LayoutRegion {
+                label: format!("[unmapped] (0x{:x}-0x{:x})", cursor, region.offset),
+                offset: cursor,
+                size: region.offset - cursor,
+                color: Color::DarkGray,
+                target: None,
+            });
+        }
+        cursor = region.offset + region.size;
+        with_gaps.push(region);
+    }
+    // Trailing gap
+    if cursor < file_size {
+        with_gaps.push(LayoutRegion {
+            label: format!("[unmapped] (0x{:x}-0x{:x})", cursor, file_size),
+            offset: cursor,
+            size: file_size - cursor,
+            color: Color::DarkGray,
+            target: None,
+        });
+    }
+    with_gaps
 }
 
 pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
@@ -198,6 +226,7 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         ("Data", Color::Rgb(200, 180, 80)),
         ("Data+W", Color::Rgb(80, 140, 220)),
         ("Strings", Color::Rgb(100, 200, 100)),
+        ("Gap", Color::DarkGray),
     ];
     let legend_spans: Vec<Span> = legend_items
         .iter()
