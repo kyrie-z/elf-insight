@@ -79,17 +79,31 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
 
     let mut lines: Vec<Line> = Vec::new();
     if let Some(func) = disasm.functions.get(app.disasm.selected_function) {
-        let visible_rows = chunks[1].height.saturating_sub(2) as usize;
         let total_insns = func.end_idx - func.start_idx;
+        let visible_rows = chunks[1].height.saturating_sub(2) as usize;
         let max_scroll = total_insns.saturating_sub(visible_rows);
 
-        if app.disasm.scroll > max_scroll {
-            app.disasm.scroll = max_scroll;
+        // Clamp cursor
+        if app.disasm.scroll >= total_insns {
+            app.disasm.scroll = total_insns.saturating_sub(1);
         }
 
-        let start = func.start_idx + app.disasm.scroll;
+        // Auto-scroll window to keep cursor visible
+        let cursor = app.disasm.scroll;
+        let mut window_start = app.disasm.scroll.saturating_sub(visible_rows / 2);
+        if window_start + visible_rows > total_insns {
+            window_start = total_insns.saturating_sub(visible_rows);
+        }
+        if cursor < window_start {
+            window_start = cursor;
+        }
+        if cursor >= window_start + visible_rows {
+            window_start = cursor.saturating_sub(visible_rows - 1);
+        }
+
+        let start = func.start_idx + window_start;
         let end = (start + visible_rows).min(func.end_idx);
-        let cursor_idx = func.start_idx + app.disasm.scroll;
+        let cursor_global_idx = func.start_idx + app.disasm.scroll;
 
         for (i, insn) in disasm.all_instructions[start..end].iter().enumerate() {
             let idx = start + i;
@@ -104,7 +118,7 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
                 insn.address, bytes_str, insn.mnemonic, insn.operands
             );
             let line = search::highlight_line(&line_str, query, hl);
-            if idx == cursor_idx {
+            if idx == cursor_global_idx {
                 lines.push(Line::from(vec![Span::styled(line.to_string(), cursor_style)]));
             } else {
                 lines.push(line);
@@ -114,14 +128,14 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
             .begin_symbol(Some("↑"))
             .end_symbol(Some("↓"));
-        let mut scrollbar_state = ScrollbarState::new(max_scroll).position(app.disasm.scroll);
+        let mut scrollbar_state = ScrollbarState::new(max_scroll).position(window_start);
         f.render_stateful_widget(scrollbar, chunks[1], &mut scrollbar_state);
     }
 
     let title = if let Some(func) = disasm.functions.get(app.disasm.selected_function) {
-        let cursor_idx = func.start_idx + app.disasm.scroll;
-        let cursor_addr = if cursor_idx < disasm.all_instructions.len() {
-            disasm.all_instructions[cursor_idx].address
+        let cursor_global = func.start_idx + app.disasm.scroll;
+        let cursor_addr = if cursor_global < disasm.all_instructions.len() {
+            disasm.all_instructions[cursor_global].address
         } else {
             func.start_addr
         };

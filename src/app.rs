@@ -93,7 +93,7 @@ impl App {
             current_disasm_section: None,
             prev_view: None,
             prev_node: None,
-            disasm_subfocus: DisasmSubFocus::Instructions,
+            disasm_subfocus: DisasmSubFocus::FuncList,
             section_view_mode: None,
         }
     }
