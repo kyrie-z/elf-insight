@@ -21,6 +21,7 @@ pub fn render(f: &mut Frame, _area: Rect) {
         "  h / l     Hexdump byte cursor",
         "  Enter     Expand tree / Enter layout region",
         "  Esc       Back (disasm focus / layout jump)",
+        "  m         Cycle section view mode",
         "",
         " Search",
         " ──────",

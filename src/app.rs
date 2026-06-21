@@ -56,7 +56,6 @@ pub enum SectionViewMode {
     Disassembly,
     Strings,
     Dynamic,
-    Info,
 }
 
 #[derive(PartialEq, Eq)]
@@ -691,7 +690,7 @@ fn get_hex_section(app: &App) -> Option<&crate::elf::parser::SectionInfo> {
 }
 
 fn available_modes(section: &crate::elf::parser::SectionInfo) -> Vec<SectionViewMode> {
-    let mut modes = vec![SectionViewMode::Info];
+    let mut modes = vec![];
     if section.size > 0 && section.offset > 0 {
         modes.push(SectionViewMode::Hexdump);
         if section.flags.contains('X') {
@@ -742,7 +741,6 @@ fn switch_section_view(app: &mut App, index: usize, mode: &SectionViewMode) {
         }
         SectionViewMode::Strings => app.current_view = DetailView::Strings,
         SectionViewMode::Dynamic => app.current_view = DetailView::StructuredInfo,
-        SectionViewMode::Info => app.current_view = DetailView::StructuredInfo,
     }
 }
 
@@ -758,29 +756,23 @@ fn update_view(app: &mut App) {
             TreeNodeType::SectionHeader { .. } => DetailView::StructuredInfo,
             TreeNodeType::SectionBody { index } => {
                 let section = &app.data.sections[*index];
-                // Default to Hexdump for all sections with data
-                if section.size == 0 || section.offset == 0 {
-                    app.section_view_mode = Some(SectionViewMode::Info);
-                    DetailView::StructuredInfo
-                } else {
-                    app.section_view_mode = Some(SectionViewMode::Hexdump);
-                    // Pre-load disassembly for executable sections
-                    if section.flags.contains('X') {
-                        if app.current_disasm_section != Some(*index) {
-                            let disasm = disassemble_section(&section.data, section.addr);
-                            let merged = merge_symbols_with_functions(&app.data.symbols, disasm.functions);
-                            app.disasm_cache = Some(DisasmResult {
-                                functions: merged,
-                                all_instructions: disasm.all_instructions,
-                                bitness: disasm.bitness,
-                            });
-                            app.current_disasm_section = Some(*index);
-                            app.disasm.selected_function = 0;
-                            app.disasm.scroll = 0;
-                        }
+                app.section_view_mode = Some(SectionViewMode::Hexdump);
+                // Pre-load disassembly for executable sections
+                if section.flags.contains('X') {
+                    if app.current_disasm_section != Some(*index) {
+                        let disasm = disassemble_section(&section.data, section.addr);
+                        let merged = merge_symbols_with_functions(&app.data.symbols, disasm.functions);
+                        app.disasm_cache = Some(DisasmResult {
+                            functions: merged,
+                            all_instructions: disasm.all_instructions,
+                            bitness: disasm.bitness,
+                        });
+                        app.current_disasm_section = Some(*index);
+                        app.disasm.selected_function = 0;
+                        app.disasm.scroll = 0;
                     }
-                    DetailView::Hexdump
                 }
+                DetailView::Hexdump
             }
             TreeNodeType::SegmentsGroup => DetailView::Overview,
             TreeNodeType::Segment { .. } => DetailView::StructuredInfo,
