@@ -30,6 +30,7 @@ pub enum LayoutTarget {
     ProgramHeaders,
     SectionHeaders,
     SectionBody(usize),
+    Unmapped { offset: u64, size: u64 },
 }
 
 pub fn build_regions(data: &crate::elf::parser::ElfData) -> Vec<LayoutRegion> {
@@ -98,7 +99,10 @@ pub fn build_regions(data: &crate::elf::parser::ElfData) -> Vec<LayoutRegion> {
                 offset: cursor,
                 size: region.offset - cursor,
                 color: Color::DarkGray,
-                target: None,
+                target: Some(LayoutTarget::Unmapped {
+                    offset: cursor,
+                    size: region.offset - cursor,
+                }),
             });
         }
         cursor = region.offset + region.size;
@@ -111,7 +115,10 @@ pub fn build_regions(data: &crate::elf::parser::ElfData) -> Vec<LayoutRegion> {
             offset: cursor,
             size: file_size - cursor,
             color: Color::DarkGray,
-            target: None,
+            target: Some(LayoutTarget::Unmapped {
+                offset: cursor,
+                size: file_size - cursor,
+            }),
         });
     }
     with_gaps

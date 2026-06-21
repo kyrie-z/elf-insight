@@ -48,6 +48,8 @@ pub struct App {
     pub prev_node: Option<TreeNodeType>,
     pub disasm_subfocus: DisasmSubFocus,
     pub section_view_mode: Option<SectionViewMode>,
+    pub raw_view_offset: u64,
+    pub raw_view_size: u64,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -95,6 +97,8 @@ impl App {
             prev_node: None,
             disasm_subfocus: DisasmSubFocus::FuncList,
             section_view_mode: None,
+            raw_view_offset: 0,
+            raw_view_size: 0,
         }
     }
 }
@@ -661,6 +665,11 @@ fn layout_map_enter(app: &mut App) {
                 app.tree.select_node(&TreeNodeType::SectionBody { index });
                 update_view(app);
             }
+            LayoutTarget::Unmapped { offset, size } => {
+                app.raw_view_offset = offset;
+                app.raw_view_size = size;
+                app.current_view = DetailView::Hexdump;
+            }
         }
     }
 }
@@ -728,6 +737,7 @@ fn switch_section_view(app: &mut App, index: usize, mode: &SectionViewMode) {
 }
 
 fn update_view(app: &mut App) {
+    app.raw_view_size = 0;
     if let Some(ref node_type) = app.tree.selected_node {
         app.current_view = match node_type {
             TreeNodeType::Overview => DetailView::Overview,

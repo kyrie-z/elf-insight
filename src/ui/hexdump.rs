@@ -31,21 +31,35 @@ impl HexdumpState {
 }
 
 pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
-    let section_index = match &app.tree.selected_node {
-        Some(crate::ui::tree::TreeNodeType::SectionBody { index }) => *index,
-        _ => {
-            let p = Paragraph::new("No section selected")
-                .block(Block::default().borders(Borders::ALL).title("Hexdump"));
-            f.render_widget(p, area);
-            return;
+    let (data, base_addr, section_name) = if app.raw_view_size > 0 {
+        let start = app.raw_view_offset as usize;
+        let end = (app.raw_view_offset + app.raw_view_size) as usize;
+        let data = if end <= app.data.raw_bytes.len() {
+            app.data.raw_bytes[start..end].to_vec()
+        } else {
+            Vec::new()
+        };
+        let name = format!("unmapped_0x{:x}", app.raw_view_offset);
+        (data, app.raw_view_offset, name)
+    } else {
+        match &app.tree.selected_node {
+            Some(crate::ui::tree::TreeNodeType::SectionBody { index }) => {
+                let section = &app.data.sections[*index];
+                (section.data.clone(), section.addr, section.name.clone())
+            }
+            _ => {
+                let p = Paragraph::new("No section selected")
+                    .block(Block::default().borders(Borders::ALL).title("Hexdump"));
+                f.render_widget(p, area);
+                return;
+            }
         }
     };
 
-    let section = &app.data.sections[section_index];
-    let data = &section.data;
+    let data = data; // make immutable
 
     if data.is_empty() {
-        let p = Paragraph::new(format!("Section {} has no data (NOBITS)", section.name))
+        let p = Paragraph::new(format!("No data to display"))
             .block(Block::default().borders(Borders::ALL).title("Hexdump"));
         f.render_widget(p, area);
         return;
@@ -82,7 +96,6 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     ]));
     lines.push(Line::from("─".repeat(area.width as usize - 2)));
 
-    let base_addr = section.addr;
     let start_row = app.hexdump.scroll;
 
     for row in start_row..(start_row + visible_rows).min(total_rows) {
@@ -136,13 +149,13 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         lines.push(line);
     }
 
-    let cursor_addr = section.addr + app.hexdump.cursor_offset as u64;
-    let sector_end = section.addr + section.size;
+    let cursor_addr = base_addr + app.hexdump.cursor_offset as u64;
+    let sector_end = base_addr + data.len() as u64;
 
     let title = format!(
         "{} - 0x{:x}-0x{:x} [Hexdump] 0x{:x}",
-        section.name,
-        section.addr,
+        section_name,
+        base_addr,
         sector_end,
         cursor_addr
     );
