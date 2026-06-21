@@ -554,7 +554,7 @@ fn handle_key(app: &mut App, key: KeyCode) {
             }
         }
 
-        // less-style: Ctrl+u/d = half page, Space = page down, b = page up
+        // vi-style: Ctrl+u/d = half page, PgUp/PgDn = full page
         KeyCode::Char('u') => {
             app.pending_g = false;
             if app.focus == Focus::Detail {
@@ -567,28 +567,16 @@ fn handle_key(app: &mut App, key: KeyCode) {
                 scroll_down(app, 10);
             }
         }
-        KeyCode::Char(' ') => {
-            app.pending_g = false;
-            if app.focus == Focus::Detail {
-                scroll_down(app, 20);
-            }
-        }
-        KeyCode::Char('b') => {
+        KeyCode::PageUp => {
             app.pending_g = false;
             if app.focus == Focus::Detail {
                 scroll_up(app, 20);
             }
         }
-        KeyCode::PageUp => {
-            app.pending_g = false;
-            if app.focus == Focus::Detail {
-                scroll_up(app, 10);
-            }
-        }
         KeyCode::PageDown => {
             app.pending_g = false;
             if app.focus == Focus::Detail {
-                scroll_down(app, 10);
+                scroll_down(app, 20);
             }
         }
         KeyCode::Home => {
