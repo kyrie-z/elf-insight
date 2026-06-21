@@ -277,6 +277,7 @@ fn scroll_up(app: &mut App, n: usize) {
         *sel_line_mut(app) = sel_line_mut(app).saturating_sub(n);
     } else {
         *scroll_mut(app) = scroll_mut(app).saturating_sub(n);
+        sync_hex_cursor(app);
     }
 }
 
@@ -285,6 +286,7 @@ fn scroll_down(app: &mut App, n: usize) {
         *sel_line_mut(app) += n;
     } else {
         *scroll_mut(app) += n;
+        sync_hex_cursor(app);
     }
 }
 
@@ -293,6 +295,7 @@ fn scroll_top(app: &mut App) {
         *sel_line_mut(app) = 0;
     } else {
         *scroll_mut(app) = 0;
+        sync_hex_cursor(app);
     }
 }
 
@@ -301,6 +304,16 @@ fn scroll_bottom(app: &mut App) {
         *sel_line_mut(app) = usize::MAX;
     } else {
         *scroll_mut(app) = usize::MAX;
+        sync_hex_cursor(app);
+    }
+}
+
+fn sync_hex_cursor(app: &mut App) {
+    if matches!(app.current_view, DetailView::Hexdump) {
+        if let Some(section) = get_hex_section(app) {
+            let row = app.hexdump.scroll.min(section.data.len().saturating_sub(1) / 16);
+            app.hexdump.cursor_offset = row * 16;
+        }
     }
 }
 
