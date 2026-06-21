@@ -1,5 +1,4 @@
 use crate::app::{App, DetailView};
-use std::collections::HashSet;
 use ratatui::prelude::*;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
@@ -142,14 +141,15 @@ pub fn do_search(app: &mut App) {
                     }
                     // Also search case-insensitive ASCII
                     let query_lower = query.to_lowercase();
-                    let mut seen_rows = std::collections::HashSet::new();
                     for (row, chunk) in data.chunks(16).enumerate() {
                         let ascii: String = chunk.iter().map(|&b| {
                             if b.is_ascii_graphic() || b == b' ' { b as char } else { '.' }
                         }).collect();
-                        if ascii.to_lowercase().contains(&query_lower) {
-                            if seen_rows.insert(row) {
-                                results.push(row * 16);
+                        let ascii_lower = ascii.to_lowercase();
+                        if let Some(col) = ascii_lower.find(&query_lower) {
+                            let offset = row * 16 + col;
+                            if !results.contains(&offset) {
+                                results.push(offset);
                             }
                         }
                     }
