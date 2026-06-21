@@ -1,5 +1,6 @@
 use goblin::elf::Elf;
 use std::fs;
+use std::collections::HashSet;
 use std::path::Path;
 
 #[derive(Debug, Clone)]
@@ -141,7 +142,7 @@ pub fn parse_elf<P: AsRef<Path>>(path: P) -> Result<ElfData, Box<dyn std::error:
             })
             .collect();
 
-        let symbols: Vec<SymbolInfo> = elf
+        let mut symbols: Vec<SymbolInfo> = elf
             .syms
             .iter()
             .filter_map(|sym| {
@@ -152,8 +153,8 @@ pub fn parse_elf<P: AsRef<Path>>(path: P) -> Result<ElfData, Box<dyn std::error:
                 let ty = match goblin::elf::sym::st_type(sym.st_info) {
                     goblin::elf::sym::STT_FUNC => SymbolType::Function,
                     goblin::elf::sym::STT_OBJECT => SymbolType::Object,
-                    goblin::elf::sym::STT_SECTION => SymbolType::Section,
-                    goblin::elf::sym::STT_FILE => SymbolType::File,
+                    goblin::elf::sym::STT_SECTION => return None,
+                    goblin::elf::sym::STT_FILE => return None,
                     t => SymbolType::Other(t),
                 };
                 let bind = sym_bind_to_str(goblin::elf::sym::st_bind(sym.st_info));
@@ -169,6 +170,45 @@ pub fn parse_elf<P: AsRef<Path>>(path: P) -> Result<ElfData, Box<dyn std::error:
                 })
             })
             .collect();
+
+        let dynsyms: Vec<SymbolInfo> = elf
+            .dynsyms
+            .iter()
+            .filter_map(|sym| {
+                let name = elf.dynstrtab.get_at(sym.st_name).unwrap_or("").to_string();
+                if name.is_empty() {
+                    return None;
+                }
+                let ty = match goblin::elf::sym::st_type(sym.st_info) {
+                    goblin::elf::sym::STT_FUNC => SymbolType::Function,
+                    goblin::elf::sym::STT_OBJECT => SymbolType::Object,
+                    _ => SymbolType::Other(0),
+                };
+                let bind = sym_bind_to_str(goblin::elf::sym::st_bind(sym.st_info));
+                let vis = sym_vis_to_str(goblin::elf::sym::st_visibility(sym.st_other));
+                Some(SymbolInfo {
+                    name,
+                    addr: sym.st_value,
+                    size: sym.st_size,
+                    ty,
+                    bind,
+                    vis,
+                    shndx: sym.st_shndx as u16,
+                })
+            })
+            .collect();
+
+        // Merge dynsyms into symbols, deduplicating by name+addr
+        let mut seen: HashSet<(String, u64)> = symbols
+            .iter()
+            .map(|s| (s.name.clone(), s.addr))
+            .collect();
+        for sym in dynsyms {
+            if !seen.contains(&(sym.name.clone(), sym.addr)) {
+                seen.insert((sym.name.clone(), sym.addr));
+                symbols.push(sym);
+            }
+        }
 
         let h = &elf.header;
         let is_pie = elf.header.e_type == goblin::elf::header::ET_DYN
