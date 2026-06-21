@@ -93,7 +93,7 @@ impl App {
             current_disasm_section: None,
             prev_view: None,
             prev_node: None,
-            disasm_subfocus: DisasmSubFocus::FuncList,
+            disasm_subfocus: DisasmSubFocus::Instructions,
             section_view_mode: None,
         }
     }
@@ -186,34 +186,7 @@ fn build_tree(data: &ElfData) -> Vec<TreeNode> {
         expanded: true,
     });
 
-    let symbol_children: Vec<TreeNode> = data
-        .symbols
-        .iter()
-        .enumerate()
-        .map(|(i, sym)| {
-            let prefix = match sym.ty {
-                crate::elf::parser::SymbolType::Function => "[F]",
-                crate::elf::parser::SymbolType::Object => "[O]",
-                _ => "[?]",
-            };
-            TreeNode {
-                label: format!("{} {}", prefix, sym.name),
-                node_type: TreeNodeType::Symbol { index: i },
-                depth: 1,
-                children: vec![],
-                expanded: true,
-            }
-        })
-        .collect();
-
-    nodes.push(TreeNode {
-        label: format!("Symbols ({})", data.symbols.len()),
-        node_type: TreeNodeType::SymbolsGroup,
-        depth: 0,
-        children: symbol_children,
-        expanded: true,
-    });
-
+    
     nodes
 }
 
