@@ -25,8 +25,7 @@ pub struct DisasmResult {
     pub bitness: u32,
 }
 
-pub fn disassemble_section(data: &[u8], base_addr: u64) -> DisasmResult {
-    let bitness = 64;
+pub fn disassemble_section(data: &[u8], base_addr: u64, bitness: u32) -> DisasmResult {
     let mut decoder = Decoder::with_ip(bitness, data, base_addr, DecoderOptions::NONE);
 
     let mut all_instructions = Vec::new();
@@ -149,7 +148,7 @@ mod tests {
 
     #[test]
     fn test_disassemble_empty_data() {
-        let result = disassemble_section(&[], 0x1000);
+        let result = disassemble_section(&[], 0x1000, 64);
         assert!(result.all_instructions.is_empty());
         assert!(result.functions.is_empty());
     }
@@ -158,7 +157,7 @@ mod tests {
     fn test_disassemble_ret_only() {
         // c3 = ret (x86-64)
         let data = [0xc3u8];
-        let result = disassemble_section(&data, 0x1000);
+        let result = disassemble_section(&data, 0x1000, 64);
         assert_eq!(result.all_instructions.len(), 1);
         assert_eq!(result.all_instructions[0].mnemonic, "ret");
         assert_eq!(result.all_instructions[0].address, 0x1000);
@@ -170,7 +169,7 @@ mod tests {
     fn test_disassemble_nop_ret() {
         // 90 = nop, c3 = ret
         let data = [0x90u8, 0xc3];
-        let result = disassemble_section(&data, 0x1000);
+        let result = disassemble_section(&data, 0x1000, 64);
         assert_eq!(result.all_instructions.len(), 2);
         assert_eq!(result.all_instructions[0].mnemonic, "nop");
         assert_eq!(result.all_instructions[1].mnemonic, "ret");
@@ -186,7 +185,7 @@ mod tests {
     fn test_identify_multiple_functions() {
         // nop; ret; nop; nop; ret
         let data = [0x90u8, 0xc3, 0x90, 0x90, 0xc3];
-        let result = disassemble_section(&data, 0x1000);
+        let result = disassemble_section(&data, 0x1000, 64);
         assert_eq!(result.functions.len(), 2);
         assert_eq!(result.functions[0].name, "sub_1000");
         assert_eq!(result.functions[1].name, "sub_1002");
@@ -195,12 +194,33 @@ mod tests {
     #[test]
     fn test_disassemble_instructions_have_bytes() {
         let data = [0x55u8, 0x48, 0x89, 0xe5, 0xc3];
-        let result = disassemble_section(&data, 0x1000);
+        let result = disassemble_section(&data, 0x1000, 64);
         for insn in &result.all_instructions {
             assert!(!insn.bytes.is_empty());
             assert!(insn.length > 0);
             assert!(!insn.mnemonic.is_empty());
         }
+    }
+
+    #[test]
+    fn test_disassemble_elf32_uses_elf32_bitness() {
+        let path = crate::elf::fixtures::elf32_fixture();
+        let data = crate::elf::parser::parse_elf(&path);
+        let _ = std::fs::remove_file(&path);
+        let data = data.expect("synthetic ELF32 should parse");
+
+        let text = data
+            .sections
+            .iter()
+            .find(|s| s.name == ".text")
+            .expect("fixture should have a .text section");
+        // 0x40 0xc3 is `inc eax; ret` in 32-bit, but a lone `ret` (REX prefix) in 64-bit.
+        let result = disassemble_section(&text.data, text.addr, data.bitness());
+
+        assert_eq!(result.bitness, 32);
+        assert_eq!(result.all_instructions.len(), 2);
+        assert_eq!(result.all_instructions[0].mnemonic, "inc");
+        assert_eq!(result.all_instructions[1].mnemonic, "ret");
     }
 
     #[test]

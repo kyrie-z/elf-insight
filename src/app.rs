@@ -693,7 +693,7 @@ fn switch_section_view(app: &mut App, index: usize, mode: &SectionViewMode) {
         SectionViewMode::Disassembly => {
             let section = &app.data.sections[index];
             if app.current_disasm_section != Some(index) && section.flags.contains('X') {
-                let disasm = disassemble_section(&section.data, section.addr);
+                let disasm = disassemble_section(&section.data, section.addr, app.data.bitness());
                 let merged = merge_symbols_with_functions(&app.data.symbols, disasm.functions);
                 app.disasm_cache = Some(DisasmResult {
                     functions: merged,
@@ -727,7 +727,8 @@ fn update_view(app: &mut App) {
                 app.section_view_mode = Some(SectionViewMode::Hexdump);
                 // Pre-load disassembly for executable sections
                 if section.flags.contains('X') && app.current_disasm_section != Some(*index) {
-                    let disasm = disassemble_section(&section.data, section.addr);
+                    let disasm =
+                        disassemble_section(&section.data, section.addr, app.data.bitness());
                     let merged = merge_symbols_with_functions(&app.data.symbols, disasm.functions);
                     app.disasm_cache = Some(DisasmResult {
                         functions: merged,
