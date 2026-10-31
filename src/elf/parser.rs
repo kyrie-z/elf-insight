@@ -1,6 +1,6 @@
 use goblin::elf::Elf;
-use std::fs;
 use std::collections::HashSet;
+use std::fs;
 use std::path::Path;
 
 #[derive(Debug, Clone)]
@@ -39,6 +39,10 @@ pub struct SymbolInfo {
     pub shndx: u16,
 }
 
+/// Full ELF symbol taxonomy. The parser currently drops section- and
+/// file-type symbols and does not record the raw type behind `Other`, so
+/// those parts are unused until the symbol views consume them.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum SymbolType {
     Function,
@@ -52,8 +56,8 @@ pub enum SymbolType {
 pub struct ElfData {
     pub file_path: String,
     pub raw_bytes: Vec<u8>,
-    pub class: u8,       // 1 = 32-bit, 2 = 64-bit
-    pub data: u8,        // 1 = little, 2 = big
+    pub class: u8, // 1 = 32-bit, 2 = 64-bit
+    pub data: u8,  // 1 = little, 2 = big
     pub os_abi: String,
     pub abi_version: u8,
     pub elf_type: String,
@@ -80,8 +84,6 @@ pub struct ElfData {
 pub struct DynamicEntry {
     pub tag: String,
     pub value: String,
-    pub raw_tag: u64,
-    pub raw_value: u64,
 }
 
 pub fn parse_elf<P: AsRef<Path>>(path: P) -> Result<ElfData, Box<dyn std::error::Error>> {
@@ -96,11 +98,7 @@ pub fn parse_elf<P: AsRef<Path>>(path: P) -> Result<ElfData, Box<dyn std::error:
             .iter()
             .enumerate()
             .map(|(i, sh)| {
-                let name = elf
-                    .shdr_strtab
-                    .get_at(sh.sh_name)
-                    .unwrap_or("")
-                    .to_string();
+                let name = elf.shdr_strtab.get_at(sh.sh_name).unwrap_or("").to_string();
                 let data = if sh.sh_type == goblin::elf::section_header::SHT_NOBITS {
                     Vec::new()
                 } else {
@@ -199,10 +197,8 @@ pub fn parse_elf<P: AsRef<Path>>(path: P) -> Result<ElfData, Box<dyn std::error:
             .collect();
 
         // Merge dynsyms into symbols, deduplicating by name+addr
-        let mut seen: HashSet<(String, u64)> = symbols
-            .iter()
-            .map(|s| (s.name.clone(), s.addr))
-            .collect();
+        let mut seen: HashSet<(String, u64)> =
+            symbols.iter().map(|s| (s.name.clone(), s.addr)).collect();
         for sym in dynsyms {
             if !seen.contains(&(sym.name.clone(), sym.addr)) {
                 seen.insert((sym.name.clone(), sym.addr));
@@ -212,7 +208,10 @@ pub fn parse_elf<P: AsRef<Path>>(path: P) -> Result<ElfData, Box<dyn std::error:
 
         let h = &elf.header;
         let is_pie = elf.header.e_type == goblin::elf::header::ET_DYN
-            && elf.program_headers.iter().any(|ph| ph.p_type == goblin::elf::program_header::PT_INTERP);
+            && elf
+                .program_headers
+                .iter()
+                .any(|ph| ph.p_type == goblin::elf::program_header::PT_INTERP);
         let header_fields = (
             h.e_ident[goblin::elf::header::EI_CLASS],
             h.e_ident[goblin::elf::header::EI_DATA],
@@ -250,7 +249,7 @@ pub fn parse_elf<P: AsRef<Path>>(path: P) -> Result<ElfData, Box<dyn std::error:
         abi_version: header_fields.3,
         elf_type: header_fields.4,
         is_pie,
-            machine: header_fields.5,
+        machine: header_fields.5,
         version: header_fields.6,
         entry: header_fields.7,
         phoff: header_fields.8,
@@ -410,8 +409,6 @@ fn parse_dynamic_from_data(data: &[u8]) -> Vec<DynamicEntry> {
         entries.push(DynamicEntry {
             tag: dynamic_tag_to_str(tag),
             value: format!("0x{:x}", value),
-            raw_tag: tag,
-            raw_value: value,
         });
     }
 
@@ -489,9 +486,18 @@ mod tests {
     #[test]
     fn test_elf_type_to_str() {
         assert_eq!(elf_type_to_str(goblin::elf::header::ET_NONE), "NONE");
-        assert_eq!(elf_type_to_str(goblin::elf::header::ET_REL), "REL (Relocatable)");
-        assert_eq!(elf_type_to_str(goblin::elf::header::ET_EXEC), "EXEC (Executable)");
-        assert_eq!(elf_type_to_str(goblin::elf::header::ET_DYN), "DYN (Shared object)");
+        assert_eq!(
+            elf_type_to_str(goblin::elf::header::ET_REL),
+            "REL (Relocatable)"
+        );
+        assert_eq!(
+            elf_type_to_str(goblin::elf::header::ET_EXEC),
+            "EXEC (Executable)"
+        );
+        assert_eq!(
+            elf_type_to_str(goblin::elf::header::ET_DYN),
+            "DYN (Shared object)"
+        );
         assert_eq!(elf_type_to_str(goblin::elf::header::ET_CORE), "CORE");
         assert_eq!(elf_type_to_str(0xFFFF), "0xffff");
     }
@@ -507,15 +513,27 @@ mod tests {
 
     #[test]
     fn test_os_abi_to_str() {
-        assert_eq!(os_abi_to_str(goblin::elf::header::ELFOSABI_NONE), "UNIX - System V");
-        assert_eq!(os_abi_to_str(goblin::elf::header::ELFOSABI_LINUX), "UNIX - Linux");
+        assert_eq!(
+            os_abi_to_str(goblin::elf::header::ELFOSABI_NONE),
+            "UNIX - System V"
+        );
+        assert_eq!(
+            os_abi_to_str(goblin::elf::header::ELFOSABI_LINUX),
+            "UNIX - Linux"
+        );
         assert_eq!(os_abi_to_str(0xFF), "0xff");
     }
 
     #[test]
     fn test_section_type_to_str() {
-        assert_eq!(section_type_to_str(goblin::elf::section_header::SHT_PROGBITS), "PROGBITS");
-        assert_eq!(section_type_to_str(goblin::elf::section_header::SHT_NOBITS), "NOBITS");
+        assert_eq!(
+            section_type_to_str(goblin::elf::section_header::SHT_PROGBITS),
+            "PROGBITS"
+        );
+        assert_eq!(
+            section_type_to_str(goblin::elf::section_header::SHT_NOBITS),
+            "NOBITS"
+        );
         assert_eq!(section_type_to_str(0xDEAD), "0xdead");
     }
 
@@ -534,9 +552,18 @@ mod tests {
 
     #[test]
     fn test_segment_type_to_str() {
-        assert_eq!(segment_type_to_str(goblin::elf::program_header::PT_LOAD), "LOAD");
-        assert_eq!(segment_type_to_str(goblin::elf::program_header::PT_DYNAMIC), "DYNAMIC");
-        assert_eq!(segment_type_to_str(goblin::elf::program_header::PT_NOTE), "NOTE");
+        assert_eq!(
+            segment_type_to_str(goblin::elf::program_header::PT_LOAD),
+            "LOAD"
+        );
+        assert_eq!(
+            segment_type_to_str(goblin::elf::program_header::PT_DYNAMIC),
+            "DYNAMIC"
+        );
+        assert_eq!(
+            segment_type_to_str(goblin::elf::program_header::PT_NOTE),
+            "NOTE"
+        );
         assert_eq!(segment_type_to_str(0xFFFF), "0xffff");
     }
 

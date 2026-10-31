@@ -3,7 +3,6 @@ use iced_x86::{Decoder, DecoderOptions, Formatter, Instruction, IntelFormatter};
 #[derive(Debug, Clone)]
 pub struct DisasmInstruction {
     pub address: u64,
-    pub offset: usize,
     pub length: usize,
     pub bytes: Vec<u8>,
     pub mnemonic: String,
@@ -51,7 +50,6 @@ pub fn disassemble_section(data: &[u8], base_addr: u64) -> DisasmResult {
 
         all_instructions.push(DisasmInstruction {
             address: instruction.ip(),
-            offset,
             length: len,
             bytes,
             mnemonic,
@@ -178,7 +176,10 @@ mod tests {
         assert_eq!(result.all_instructions[1].mnemonic, "ret");
         assert_eq!(result.functions.len(), 1);
         assert_eq!(result.functions[0].start_addr, 0x1000);
-        assert_eq!(result.functions[0].end_idx - result.functions[0].start_idx, 2);
+        assert_eq!(
+            result.functions[0].end_idx - result.functions[0].start_idx,
+            2
+        );
     }
 
     #[test]

@@ -21,13 +21,13 @@ Instructions for AI agents working in this repository. Keep it short and factual
 | Test | `cargo test` |
 | Run | `cargo run -- <path-to-elf>` |
 | Format check | `cargo fmt --check` |
-| Lint | `cargo clippy --all-targets` |
+| Lint | `cargo clippy --all-targets -- -D warnings` |
 
 What is actually enforced:
 
-- There is no CI in this repo. `cargo build --release` and `cargo test` (29 tests) pass on `master`; those are the gates to report.
-- `cargo fmt --check` currently fails on `master` — the tree is not rustfmt-clean. Do not reformat unrelated files.
-- `cargo clippy --all-targets` exits 0 but reports 25 warnings on `master` (2026-10-31). Do not add new warnings, and do not run `cargo clippy --fix` across the repo inside an unrelated change.
+- There is no CI in this repo. `cargo build --release`, `cargo test` (29 tests), `cargo fmt --check`, and `cargo clippy --all-targets -- -D warnings` all pass on `master` (2026-10-31); those are the gates to report.
+- Formatting, lint and warnings are a hard gate, not advisory. A change that leaves `cargo fmt --check` or `cargo clippy --all-targets -- -D warnings` failing is not done, even when build and tests pass.
+- Do not run `cargo fmt` or `cargo clippy --fix` across the repo inside an unrelated change. Formatting and lint fixes belong in their own cleanup change.
 
 ## Tests
 
@@ -73,4 +73,6 @@ What is actually enforced:
 
 1. `cargo build --release` — must succeed.
 2. `cargo test` — must pass.
-3. For UI changes: this is a TUI, so exercise it with `cargo run -- /bin/ls` in a real terminal and say what you checked. A headless run cannot confirm rendering; state that limitation instead of claiming visual verification.
+3. `cargo fmt --check` — must exit 0.
+4. `cargo clippy --all-targets -- -D warnings` — must exit 0 with zero warnings.
+5. For UI changes: this is a TUI, so exercise it with `cargo run -- /bin/ls` in a real terminal and say what you checked. A headless run cannot confirm rendering; state that limitation instead of claiming visual verification.

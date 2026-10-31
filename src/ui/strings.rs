@@ -2,7 +2,9 @@ use crate::app::{App, Focus};
 use crate::ui::search;
 use ratatui::prelude::*;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
+use ratatui::widgets::{
+    Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+};
 
 pub struct StringsState {
     pub scroll: usize,
@@ -11,7 +13,10 @@ pub struct StringsState {
 
 impl StringsState {
     pub fn new() -> Self {
-        StringsState { scroll: 0, selected_line: 0 }
+        StringsState {
+            scroll: 0,
+            selected_line: 0,
+        }
     }
 }
 
@@ -56,7 +61,9 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
 
     let query = &app.search.query;
     let hl = Style::default().fg(Color::Yellow).bg(Color::Rgb(80, 80, 0));
-    let cursor_style = Style::default().fg(Color::Black).bg(Color::Rgb(200, 200, 100));
+    let cursor_style = Style::default()
+        .fg(Color::Black)
+        .bg(Color::Rgb(200, 200, 100));
 
     let start = app.strings.scroll;
     let end = (start + visible).min(total);
@@ -67,7 +74,12 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
             let line_num = start + i;
             let hl_line = search::highlight_line(line, query, hl);
             if line_num == app.strings.selected_line {
-                Line::from(hl_line.iter().map(|s| Span::styled(s.content.clone(), cursor_style)).collect::<Vec<_>>())
+                Line::from(
+                    hl_line
+                        .iter()
+                        .map(|s| Span::styled(s.content.clone(), cursor_style))
+                        .collect::<Vec<_>>(),
+                )
             } else {
                 hl_line
             }
@@ -82,7 +94,12 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         Style::default()
     };
 
-    let p = Paragraph::new(text_lines).block(Block::default().borders(Borders::ALL).title(title).border_style(border_style));
+    let p = Paragraph::new(text_lines).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(title)
+            .border_style(border_style),
+    );
     f.render_widget(p, area);
 
     let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)

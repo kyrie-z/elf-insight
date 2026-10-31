@@ -1,12 +1,12 @@
-pub mod tree;
-pub mod overview;
-pub mod info;
-pub mod hexdump;
 pub mod disasm;
-pub mod strings;
-pub mod search;
 pub mod help;
+pub mod hexdump;
+pub mod info;
 pub mod layout_map;
+pub mod overview;
+pub mod search;
+pub mod strings;
+pub mod tree;
 
 use crate::app::{App, DetailView};
 use ratatui::prelude::*;

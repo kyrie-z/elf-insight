@@ -1,13 +1,13 @@
+use crate::elf::disasm::{disassemble_section, merge_symbols_with_functions, DisasmResult};
 use crate::elf::parser::ElfData;
-use crate::elf::disasm::{DisasmResult, disassemble_section, merge_symbols_with_functions};
-use crate::ui::tree::{TreeNode, TreeNodeType, TreeState};
-use crate::ui::overview::OverviewState;
-use crate::ui::info::InfoState;
-use crate::ui::hexdump::HexdumpState;
 use crate::ui::disasm::DisasmState;
-use crate::ui::strings::StringsState;
+use crate::ui::hexdump::HexdumpState;
+use crate::ui::info::InfoState;
 use crate::ui::layout_map::LayoutMapState;
+use crate::ui::overview::OverviewState;
 use crate::ui::search::SearchState;
+use crate::ui::strings::StringsState;
+use crate::ui::tree::{TreeNode, TreeNodeType, TreeState};
 
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind},
@@ -109,7 +109,6 @@ fn build_tree(data: &ElfData) -> Vec<TreeNode> {
     nodes.push(TreeNode {
         label: "Overview".into(),
         node_type: TreeNodeType::Overview,
-        depth: 0,
         children: vec![],
         expanded: true,
     });
@@ -117,7 +116,6 @@ fn build_tree(data: &ElfData) -> Vec<TreeNode> {
     nodes.push(TreeNode {
         label: "Layout Map".into(),
         node_type: TreeNodeType::LayoutMap,
-        depth: 0,
         children: vec![],
         expanded: true,
     });
@@ -125,23 +123,28 @@ fn build_tree(data: &ElfData) -> Vec<TreeNode> {
     nodes.push(TreeNode {
         label: format!("ELF Header (0x0-0x{:x})", data.ehsize),
         node_type: TreeNodeType::ElfHeader,
-        depth: 0,
         children: vec![],
         expanded: true,
     });
 
     nodes.push(TreeNode {
-        label: format!("Program Headers (0x{:x}-0x{:x})", data.phoff, data.phoff + data.phnum as u64 * data.phentsize as u64),
+        label: format!(
+            "Program Headers (0x{:x}-0x{:x})",
+            data.phoff,
+            data.phoff + data.phnum as u64 * data.phentsize as u64
+        ),
         node_type: TreeNodeType::ProgramHeaders,
-        depth: 0,
         children: vec![],
         expanded: true,
     });
 
     nodes.push(TreeNode {
-        label: format!("Section Headers (0x{:x}-0x{:x})", data.shoff, data.shoff + data.shnum as u64 * data.shentsize as u64),
+        label: format!(
+            "Section Headers (0x{:x}-0x{:x})",
+            data.shoff,
+            data.shoff + data.shnum as u64 * data.shentsize as u64
+        ),
         node_type: TreeNodeType::SectionHeaders,
-        depth: 0,
         children: vec![],
         expanded: true,
     });
@@ -151,12 +154,17 @@ fn build_tree(data: &ElfData) -> Vec<TreeNode> {
         .iter()
         .map(|s| TreeNode {
             label: if s.size > 0 && s.offset > 0 {
-                format!("[{}] {} (0x{:x}-0x{:x})", s.index, s.name, s.offset, s.offset + s.size)
+                format!(
+                    "[{}] {} (0x{:x}-0x{:x})",
+                    s.index,
+                    s.name,
+                    s.offset,
+                    s.offset + s.size
+                )
             } else {
                 format!("[{}] {}", s.index, s.name)
             },
             node_type: TreeNodeType::SectionBody { index: s.index },
-            depth: 1,
             children: vec![],
             expanded: true,
         })
@@ -165,7 +173,6 @@ fn build_tree(data: &ElfData) -> Vec<TreeNode> {
     nodes.push(TreeNode {
         label: format!("Sections ({})", data.sections.len()),
         node_type: TreeNodeType::SectionsGroup,
-        depth: 0,
         children: section_children,
         expanded: true,
     });
@@ -174,9 +181,14 @@ fn build_tree(data: &ElfData) -> Vec<TreeNode> {
         .segments
         .iter()
         .map(|s| TreeNode {
-            label: format!("[{}] {} (0x{:x}-0x{:x})", s.index, s.ty, s.vaddr, s.vaddr + s.memsz),
+            label: format!(
+                "[{}] {} (0x{:x}-0x{:x})",
+                s.index,
+                s.ty,
+                s.vaddr,
+                s.vaddr + s.memsz
+            ),
             node_type: TreeNodeType::Segment { index: s.index },
-            depth: 1,
             children: vec![],
             expanded: true,
         })
@@ -185,12 +197,10 @@ fn build_tree(data: &ElfData) -> Vec<TreeNode> {
     nodes.push(TreeNode {
         label: format!("Segments ({})", data.segments.len()),
         node_type: TreeNodeType::SegmentsGroup,
-        depth: 0,
         children: segment_children,
         expanded: true,
     });
 
-    
     nodes
 }
 
@@ -273,7 +283,10 @@ fn sel_line_mut(app: &mut App) -> &mut usize {
 }
 
 fn is_line_view(app: &App) -> bool {
-    matches!(app.current_view, DetailView::Overview | DetailView::StructuredInfo | DetailView::Strings)
+    matches!(
+        app.current_view,
+        DetailView::Overview | DetailView::StructuredInfo | DetailView::Strings
+    )
 }
 
 fn scroll_up(app: &mut App, n: usize) {
@@ -490,7 +503,9 @@ fn handle_key(app: &mut App, key: KeyCode) {
             app.pending_g = false;
             if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Hexdump) {
                 app.hexdump.cursor_offset += 1;
-            } else if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Disassembly) {
+            } else if app.focus == Focus::Detail
+                && matches!(app.current_view, DetailView::Disassembly)
+            {
                 if app.disasm_subfocus == DisasmSubFocus::FuncList {
                     app.disasm_subfocus = DisasmSubFocus::Instructions;
                 }
@@ -504,7 +519,9 @@ fn handle_key(app: &mut App, key: KeyCode) {
                 if app.hexdump.cursor_offset > 0 {
                     app.hexdump.cursor_offset -= 1;
                 }
-            } else if app.focus == Focus::Detail && matches!(app.current_view, DetailView::Disassembly) {
+            } else if app.focus == Focus::Detail
+                && matches!(app.current_view, DetailView::Disassembly)
+            {
                 if app.disasm_subfocus == DisasmSubFocus::Instructions {
                     app.disasm_subfocus = DisasmSubFocus::FuncList;
                 }
@@ -598,9 +615,11 @@ fn handle_key(app: &mut App, key: KeyCode) {
 }
 
 fn layout_map_enter(app: &mut App) {
-    use crate::ui::layout_map::{LayoutTarget, build_regions};
+    use crate::ui::layout_map::{build_regions, LayoutTarget};
     let regions = build_regions(&app.data);
-    let target = regions.get(app.layout_map.selected_row).and_then(|r| r.target.clone());
+    let target = regions
+        .get(app.layout_map.selected_row)
+        .and_then(|r| r.target.clone());
     if let Some(target) = target {
         app.prev_view = Some(DetailView::LayoutMap);
         app.prev_node = Some(TreeNodeType::LayoutMap);
@@ -707,19 +726,17 @@ fn update_view(app: &mut App) {
                 let section = &app.data.sections[*index];
                 app.section_view_mode = Some(SectionViewMode::Hexdump);
                 // Pre-load disassembly for executable sections
-                if section.flags.contains('X') {
-                    if app.current_disasm_section != Some(*index) {
-                        let disasm = disassemble_section(&section.data, section.addr);
-                        let merged = merge_symbols_with_functions(&app.data.symbols, disasm.functions);
-                        app.disasm_cache = Some(DisasmResult {
-                            functions: merged,
-                            all_instructions: disasm.all_instructions,
-                            bitness: disasm.bitness,
-                        });
-                        app.current_disasm_section = Some(*index);
-                        app.disasm.selected_function = 0;
-                        app.disasm.scroll = 0;
-                    }
+                if section.flags.contains('X') && app.current_disasm_section != Some(*index) {
+                    let disasm = disassemble_section(&section.data, section.addr);
+                    let merged = merge_symbols_with_functions(&app.data.symbols, disasm.functions);
+                    app.disasm_cache = Some(DisasmResult {
+                        functions: merged,
+                        all_instructions: disasm.all_instructions,
+                        bitness: disasm.bitness,
+                    });
+                    app.current_disasm_section = Some(*index);
+                    app.disasm.selected_function = 0;
+                    app.disasm.scroll = 0;
                 }
                 DetailView::Hexdump
             }
