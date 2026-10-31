@@ -2,7 +2,9 @@ use crate::app::{App, Focus};
 use crate::ui::search;
 use ratatui::prelude::*;
 use ratatui::text::Line;
-use ratatui::widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
+use ratatui::widgets::{
+    Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+};
 
 pub struct OverviewState {
     pub scroll: usize,
@@ -11,7 +13,10 @@ pub struct OverviewState {
 
 impl OverviewState {
     pub fn new() -> Self {
-        OverviewState { scroll: 0, selected_line: 0 }
+        OverviewState {
+            scroll: 0,
+            selected_line: 0,
+        }
     }
 }
 
@@ -20,10 +25,20 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
 
     let mut lines: Vec<String> = Vec::new();
 
-    lines.push(format!("ELF Header"));
+    lines.push("ELF Header".to_string());
     lines.push(format!("  Magic:   {:02x?}", &data.raw_bytes[..16]));
-    lines.push(format!("  Class:   {}", if data.class == 2 { "ELF64" } else { "ELF32" }));
-    lines.push(format!("  Data:    {}", if data.data == 1 { "2's complement, little endian" } else { "2's complement, big endian" }));
+    lines.push(format!(
+        "  Class:   {}",
+        if data.class == 2 { "ELF64" } else { "ELF32" }
+    ));
+    lines.push(format!(
+        "  Data:    {}",
+        if data.data == 1 {
+            "2's complement, little endian"
+        } else {
+            "2's complement, big endian"
+        }
+    ));
     lines.push(format!("  Version: {} (current)", data.version));
     lines.push(format!("  OS/ABI:  {}", data.os_abi));
     let type_display = if data.is_pie {
@@ -34,21 +49,42 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     lines.push(format!("  Type:    {}", type_display));
     lines.push(format!("  Machine: {}", data.machine));
     lines.push(format!("  Entry:   0x{:x}", data.entry));
-    lines.push(format!("  PH off:  0x{:x} ({} entries, {} bytes each)", data.phoff, data.phnum, data.phentsize));
-    lines.push(format!("  SH off:  0x{:x} ({} entries, {} bytes each)", data.shoff, data.shnum, data.shentsize));
+    lines.push(format!(
+        "  PH off:  0x{:x} ({} entries, {} bytes each)",
+        data.phoff, data.phnum, data.phentsize
+    ));
+    lines.push(format!(
+        "  SH off:  0x{:x} ({} entries, {} bytes each)",
+        data.shoff, data.shnum, data.shentsize
+    ));
     lines.push(format!("  Flags:   0x{:x}", data.flags));
     lines.push(String::new());
 
-    lines.push(format!("[Nr] Name                  Type       Address    Offset    Size      Flags"));
+    lines.push(
+        "[Nr] Name                  Type       Address    Offset    Size      Flags".to_string(),
+    );
     for s in &data.sections {
-        let name = if s.name.len() > 20 { format!("{:.20}", s.name) } else { format!("{:20}", s.name) };
-        lines.push(format!("[{:2}] {} {:10} 0x{:08x} 0x{:06x} 0x{:06x} {:3}", s.index, name, s.ty, s.addr, s.offset, s.size, s.flags));
+        let name = if s.name.len() > 20 {
+            format!("{:.20}", s.name)
+        } else {
+            format!("{:20}", s.name)
+        };
+        lines.push(format!(
+            "[{:2}] {} {:10} 0x{:08x} 0x{:06x} 0x{:06x} {:3}",
+            s.index, name, s.ty, s.addr, s.offset, s.size, s.flags
+        ));
     }
     lines.push(String::new());
 
-    lines.push(format!("Program Headers:  Type       Offset   VirtAddr  PhysAddr  FileSiz  MemSiz   Flg Align"));
+    lines.push(
+        "Program Headers:  Type       Offset   VirtAddr  PhysAddr  FileSiz  MemSiz   Flg Align"
+            .to_string(),
+    );
     for s in &data.segments {
-        lines.push(format!("  {:14} 0x{:06x} 0x{:08x} 0x{:08x} 0x{:06x} 0x{:06x} {:3} 0x{:x}", s.ty, s.offset, s.vaddr, s.paddr, s.filesz, s.memsz, s.flags, s.align));
+        lines.push(format!(
+            "  {:14} 0x{:06x} 0x{:08x} 0x{:08x} 0x{:06x} 0x{:06x} {:3} 0x{:x}",
+            s.ty, s.offset, s.vaddr, s.paddr, s.filesz, s.memsz, s.flags, s.align
+        ));
     }
 
     let total = lines.len();
@@ -72,7 +108,9 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
 
     let query = &app.search.query;
     let hl = Style::default().fg(Color::Yellow).bg(Color::Rgb(80, 80, 0));
-    let cursor_style = Style::default().fg(Color::Black).bg(Color::Rgb(200, 200, 100));
+    let cursor_style = Style::default()
+        .fg(Color::Black)
+        .bg(Color::Rgb(200, 200, 100));
 
     let start = app.overview.scroll;
     let end = (start + visible).min(total);
@@ -83,7 +121,12 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
             let line_num = start + i;
             let hl_line = search::highlight_line(line, query, hl);
             if line_num == app.overview.selected_line {
-                Line::from(hl_line.iter().map(|s| Span::styled(s.content.clone(), cursor_style)).collect::<Vec<_>>())
+                Line::from(
+                    hl_line
+                        .iter()
+                        .map(|s| Span::styled(s.content.clone(), cursor_style))
+                        .collect::<Vec<_>>(),
+                )
             } else {
                 hl_line
             }
@@ -96,8 +139,12 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         Style::default()
     };
 
-    let p = Paragraph::new(text_lines)
-        .block(Block::default().borders(Borders::ALL).title(format!("Overview - {}", app.data.file_path)).border_style(border_style));
+    let p = Paragraph::new(text_lines).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(format!("Overview - {}", app.data.file_path))
+            .border_style(border_style),
+    );
 
     f.render_widget(p, area);
 

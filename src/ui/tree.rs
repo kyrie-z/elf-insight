@@ -2,6 +2,10 @@ use crate::app::{App, Focus};
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState};
 
+/// Node kinds for every view the tree can show. `build_tree` only emits the
+/// overview/header/section/segment nodes today, so the section-header and
+/// symbol variants are matched by the UI but not yet constructed.
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TreeNodeType {
     Overview,
@@ -22,7 +26,6 @@ pub enum TreeNodeType {
 pub struct TreeNode {
     pub label: String,
     pub node_type: TreeNodeType,
-    pub depth: u8,
     pub children: Vec<TreeNode>,
     pub expanded: bool,
 }
@@ -65,13 +68,18 @@ impl TreeState {
 
     fn collect_flat(&self) -> Vec<(&TreeNode, u8, Vec<usize>)> {
         let mut result = Vec::new();
-        Self::collect(&self.nodes, 0, &mut vec![], &mut result);
+        Self::collect(&self.nodes, 0, &[], &mut result);
         result
     }
 
-    fn collect<'a>(nodes: &'a [TreeNode], depth: u8, path: &Vec<usize>, result: &mut Vec<(&'a TreeNode, u8, Vec<usize>)>) {
+    fn collect<'a>(
+        nodes: &'a [TreeNode],
+        depth: u8,
+        path: &[usize],
+        result: &mut Vec<(&'a TreeNode, u8, Vec<usize>)>,
+    ) {
         for (i, node) in nodes.iter().enumerate() {
-            let mut node_path = path.clone();
+            let mut node_path = path.to_owned();
             node_path.push(i);
             result.push((node, depth, node_path.clone()));
             if node.expanded {
@@ -199,7 +207,11 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         .map(|(node, depth, _path)| {
             let indent = "  ".repeat(*depth as usize);
             let prefix = if !node.children.is_empty() {
-                if node.expanded { "▼ " } else { "▶ " }
+                if node.expanded {
+                    "▼ "
+                } else {
+                    "▶ "
+                }
             } else {
                 "  "
             };
@@ -214,7 +226,12 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     };
 
     let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title("Navigation").border_style(border_style))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Navigation")
+                .border_style(border_style),
+        )
         .highlight_style(Style::default().bg(Color::DarkGray).fg(Color::White));
 
     f.render_stateful_widget(list, area, &mut app.tree.list_state);
@@ -229,26 +246,22 @@ mod tests {
             TreeNode {
                 label: "Overview".into(),
                 node_type: TreeNodeType::Overview,
-                depth: 0,
                 children: vec![],
                 expanded: true,
             },
             TreeNode {
                 label: "Sections".into(),
                 node_type: TreeNodeType::SectionsGroup,
-                depth: 0,
                 children: vec![
                     TreeNode {
                         label: ".text".into(),
                         node_type: TreeNodeType::SectionBody { index: 0 },
-                        depth: 1,
                         children: vec![],
                         expanded: true,
                     },
                     TreeNode {
                         label: ".data".into(),
                         node_type: TreeNodeType::SectionBody { index: 1 },
-                        depth: 1,
                         children: vec![],
                         expanded: true,
                     },
@@ -309,7 +322,10 @@ mod tests {
         let state = TreeState::new(nodes);
         assert_eq!(state.node_at_index(0), Some(TreeNodeType::Overview));
         assert_eq!(state.node_at_index(1), Some(TreeNodeType::SectionsGroup));
-        assert_eq!(state.node_at_index(2), Some(TreeNodeType::SectionBody { index: 0 }));
+        assert_eq!(
+            state.node_at_index(2),
+            Some(TreeNodeType::SectionBody { index: 0 })
+        );
         assert_eq!(state.node_at_index(999), None);
     }
 }

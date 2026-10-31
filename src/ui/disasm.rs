@@ -2,7 +2,10 @@ use crate::app::{App, DisasmSubFocus, Focus};
 use crate::ui::search;
 use ratatui::prelude::*;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
+use ratatui::widgets::{
+    Block, Borders, List, ListItem, ListState, Paragraph, Scrollbar, ScrollbarOrientation,
+    ScrollbarState,
+};
 
 pub struct DisasmState {
     pub selected_function: usize,
@@ -58,16 +61,24 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         })
         .collect();
 
-    app.disasm.func_list_state.select(Some(app.disasm.selected_function));
+    app.disasm
+        .func_list_state
+        .select(Some(app.disasm.selected_function));
 
-    let func_border_style = if app.focus == Focus::Detail && app.disasm_subfocus == DisasmSubFocus::FuncList {
-        border_style
-    } else {
-        border_style.fg(Color::Gray)
-    };
+    let func_border_style =
+        if app.focus == Focus::Detail && app.disasm_subfocus == DisasmSubFocus::FuncList {
+            border_style
+        } else {
+            border_style.fg(Color::Gray)
+        };
 
     let func_list = List::new(func_items)
-        .block(Block::default().borders(Borders::ALL).title("Functions").border_style(func_border_style))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Functions")
+                .border_style(func_border_style),
+        )
         .highlight_style(Style::default().bg(Color::DarkGray).fg(Color::White));
 
     f.render_stateful_widget(func_list, chunks[0], &mut app.disasm.func_list_state);
@@ -75,7 +86,9 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     // Instructions
     let query = &app.search.query;
     let hl = Style::default().fg(Color::Yellow).bg(Color::Rgb(80, 80, 0));
-    let cursor_style = Style::default().fg(Color::Black).bg(Color::Rgb(200, 200, 100));
+    let cursor_style = Style::default()
+        .fg(Color::Black)
+        .bg(Color::Rgb(200, 200, 100));
 
     let mut lines: Vec<Line> = Vec::new();
     let mut total_insns = 0usize;
@@ -120,7 +133,10 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
             );
             let line = search::highlight_line(&line_str, query, hl);
             if idx == cursor_global_idx {
-                lines.push(Line::from(vec![Span::styled(line.to_string(), cursor_style)]));
+                lines.push(Line::from(vec![Span::styled(
+                    line.to_string(),
+                    cursor_style,
+                )]));
             } else {
                 lines.push(line);
             }
@@ -134,18 +150,27 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         } else {
             func.start_addr
         };
-        format!("{} (0x{:x}-0x{:x}) [Disasm] 0x{:x}", func.name, func.start_addr, func.end_addr, cursor_addr)
+        format!(
+            "{} (0x{:x}-0x{:x}) [Disasm] 0x{:x}",
+            func.name, func.start_addr, func.end_addr, cursor_addr
+        )
     } else {
         "Disassembly".into()
     };
 
-    let insn_border_style = if app.focus == Focus::Detail && app.disasm_subfocus == DisasmSubFocus::Instructions {
-        border_style
-    } else {
-        border_style.fg(Color::Gray)
-    };
+    let insn_border_style =
+        if app.focus == Focus::Detail && app.disasm_subfocus == DisasmSubFocus::Instructions {
+            border_style
+        } else {
+            border_style.fg(Color::Gray)
+        };
 
-    let p = Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title(title).border_style(insn_border_style));
+    let p = Paragraph::new(lines).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(title)
+            .border_style(insn_border_style),
+    );
     f.render_widget(p, chunks[1]);
 
     let visible_rows = chunks[1].height.saturating_sub(2) as usize;
@@ -154,7 +179,6 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
         .begin_symbol(Some("↑"))
         .end_symbol(Some("↓"));
-    let mut scrollbar_state = ScrollbarState::new(content_len)
-        .position(pos);
+    let mut scrollbar_state = ScrollbarState::new(content_len).position(pos);
     f.render_stateful_widget(scrollbar, chunks[1], &mut scrollbar_state);
 }

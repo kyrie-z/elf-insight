@@ -1,7 +1,9 @@
 use crate::app::{App, Focus};
 use ratatui::prelude::*;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
+use ratatui::widgets::{
+    Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+};
 
 pub struct LayoutMapState {
     pub scroll: usize,
@@ -11,7 +13,11 @@ pub struct LayoutMapState {
 
 impl LayoutMapState {
     pub fn new() -> Self {
-        LayoutMapState { scroll: 0, selected_row: 0, region_count: 0 }
+        LayoutMapState {
+            scroll: 0,
+            selected_row: 0,
+            region_count: 0,
+        }
     }
 }
 
@@ -179,7 +185,10 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     // Header line
     lines.push(Line::from(vec![
         Span::styled(
-            format!(" {:<40} {:>10}  {:>12}  {:>6}  ", "Name", "Offset", "Size", "Pct"),
+            format!(
+                " {:<40} {:>10}  {:>12}  {:>6}  ",
+                "Name", "Offset", "Size", "Pct"
+            ),
             Style::default().add_modifier(Modifier::BOLD),
         ),
         Span::raw("Bar"),
@@ -205,9 +214,13 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
             Style::default()
         };
 
-        let prefix = if i == app.layout_map.selected_row { "▶" } else { " " };
+        let prefix = if i == app.layout_map.selected_row {
+            "▶"
+        } else {
+            " "
+        };
 
-        let mut spans = vec![
+        let spans = vec![
             Span::styled(
                 format!(
                     "{}{:<40}  0x{:06x}  0x{:08x}  {:5.1}%  ",
@@ -215,17 +228,14 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
                 ),
                 line_style,
             ),
-            Span::styled(
-                "█".repeat(bar_len),
-                Style::default().fg(region.color),
-            ),
+            Span::styled("█".repeat(bar_len), Style::default().fg(region.color)),
         ];
         lines.push(Line::from(spans));
     }
 
     // Legend
     lines.push(Line::from(""));
-    let legend_items = vec![
+    let legend_items = [
         ("ELF Hdr", Color::Rgb(255, 200, 60)),
         ("PHDR", Color::Rgb(100, 200, 255)),
         ("SHDR", Color::Rgb(180, 140, 255)),

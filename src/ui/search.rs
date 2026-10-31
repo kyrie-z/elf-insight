@@ -47,8 +47,7 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     } else {
         format!("/{}_", app.search.input)
     };
-    let p = Paragraph::new(display)
-        .block(Block::default().borders(Borders::ALL).title("Search"));
+    let p = Paragraph::new(display).block(Block::default().borders(Borders::ALL).title("Search"));
     f.render_widget(p, search_area);
 }
 
@@ -68,7 +67,7 @@ pub fn do_search(app: &mut App) {
                 DetailView::Hexdump => {
                     if let Some(section) = get_current_section(app) {
                         let offset = addr.saturating_sub(section.addr);
-                        if (offset as u64) < section.size {
+                        if offset < section.size {
                             app.search.results = vec![offset as usize];
                         }
                     }
@@ -132,19 +131,27 @@ pub fn do_search(app: &mut App) {
                     let query_bytes = query.as_bytes();
                     let mut results = Vec::new();
                     // Search raw bytes for exact match
-                    for start in 0..data.len().saturating_sub(query_bytes.len().saturating_sub(1)) {
-                        if data[start..].starts_with(query_bytes) {
-                            if !results.contains(&start) {
-                                results.push(start);
-                            }
+                    for start in 0..data
+                        .len()
+                        .saturating_sub(query_bytes.len().saturating_sub(1))
+                    {
+                        if data[start..].starts_with(query_bytes) && !results.contains(&start) {
+                            results.push(start);
                         }
                     }
                     // Also search case-insensitive ASCII
                     let query_lower = query.to_lowercase();
                     for (row, chunk) in data.chunks(16).enumerate() {
-                        let ascii: String = chunk.iter().map(|&b| {
-                            if b.is_ascii_graphic() || b == b' ' { b as char } else { '.' }
-                        }).collect();
+                        let ascii: String = chunk
+                            .iter()
+                            .map(|&b| {
+                                if b.is_ascii_graphic() || b == b' ' {
+                                    b as char
+                                } else {
+                                    '.'
+                                }
+                            })
+                            .collect();
                         let ascii_lower = ascii.to_lowercase();
                         if let Some(col) = ascii_lower.find(&query_lower) {
                             let offset = row * 16 + col;
@@ -256,10 +263,20 @@ pub fn build_overview_lines(app: &App) -> Vec<String> {
     let data = &app.data;
     let mut lines = Vec::new();
 
-    lines.push(format!("ELF Header"));
+    lines.push("ELF Header".to_string());
     lines.push(format!("  Magic:   {:02x?}", &data.raw_bytes[..16]));
-    lines.push(format!("  Class:   {}", if data.class == 2 { "ELF64" } else { "ELF32" }));
-    lines.push(format!("  Data:    {}", if data.data == 1 { "2's complement, little endian" } else { "2's complement, big endian" }));
+    lines.push(format!(
+        "  Class:   {}",
+        if data.class == 2 { "ELF64" } else { "ELF32" }
+    ));
+    lines.push(format!(
+        "  Data:    {}",
+        if data.data == 1 {
+            "2's complement, little endian"
+        } else {
+            "2's complement, big endian"
+        }
+    ));
     lines.push(format!("  Version: {} (current)", data.version));
     lines.push(format!("  OS/ABI:  {}", data.os_abi));
     let type_display = if data.is_pie {
@@ -270,21 +287,42 @@ pub fn build_overview_lines(app: &App) -> Vec<String> {
     lines.push(format!("  Type:    {}", type_display));
     lines.push(format!("  Machine: {}", data.machine));
     lines.push(format!("  Entry:   0x{:x}", data.entry));
-    lines.push(format!("  PH off:  0x{:x} ({} entries, {} bytes each)", data.phoff, data.phnum, data.phentsize));
-    lines.push(format!("  SH off:  0x{:x} ({} entries, {} bytes each)", data.shoff, data.shnum, data.shentsize));
+    lines.push(format!(
+        "  PH off:  0x{:x} ({} entries, {} bytes each)",
+        data.phoff, data.phnum, data.phentsize
+    ));
+    lines.push(format!(
+        "  SH off:  0x{:x} ({} entries, {} bytes each)",
+        data.shoff, data.shnum, data.shentsize
+    ));
     lines.push(format!("  Flags:   0x{:x}", data.flags));
     lines.push(String::new());
 
-    lines.push(format!("[Nr] Name                  Type       Address    Offset    Size      Flags"));
+    lines.push(
+        "[Nr] Name                  Type       Address    Offset    Size      Flags".to_string(),
+    );
     for s in &data.sections {
-        let name = if s.name.len() > 20 { format!("{:.20}", s.name) } else { format!("{:20}", s.name) };
-        lines.push(format!("[{:2}] {} {:10} 0x{:08x} 0x{:06x} 0x{:06x} {:3}", s.index, name, s.ty, s.addr, s.offset, s.size, s.flags));
+        let name = if s.name.len() > 20 {
+            format!("{:.20}", s.name)
+        } else {
+            format!("{:20}", s.name)
+        };
+        lines.push(format!(
+            "[{:2}] {} {:10} 0x{:08x} 0x{:06x} 0x{:06x} {:3}",
+            s.index, name, s.ty, s.addr, s.offset, s.size, s.flags
+        ));
     }
     lines.push(String::new());
 
-    lines.push(format!("Program Headers:  Type       Offset   VirtAddr  PhysAddr  FileSiz  MemSiz   Flg Align"));
+    lines.push(
+        "Program Headers:  Type       Offset   VirtAddr  PhysAddr  FileSiz  MemSiz   Flg Align"
+            .to_string(),
+    );
     for s in &data.segments {
-        lines.push(format!("  {:14} 0x{:06x} 0x{:08x} 0x{:08x} 0x{:06x} 0x{:06x} {:3} 0x{:x}", s.ty, s.offset, s.vaddr, s.paddr, s.filesz, s.memsz, s.flags, s.align));
+        lines.push(format!(
+            "  {:14} 0x{:06x} 0x{:08x} 0x{:08x} 0x{:06x} 0x{:06x} {:3} 0x{:x}",
+            s.ty, s.offset, s.vaddr, s.paddr, s.filesz, s.memsz, s.flags, s.align
+        ));
     }
     lines
 }

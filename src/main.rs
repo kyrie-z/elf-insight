@@ -13,11 +13,10 @@ fn main() {
     }
     let file_path = &args[1];
 
-    let data = elf::parser::parse_elf(file_path)
-        .unwrap_or_else(|e| {
-            eprintln!("Failed to parse ELF file: {}", e);
-            process::exit(1);
-        });
+    let data = elf::parser::parse_elf(file_path).unwrap_or_else(|e| {
+        eprintln!("Failed to parse ELF file: {}", e);
+        process::exit(1);
+    });
 
     app::run_app(data).unwrap_or_else(|e| {
         eprintln!("Application error: {}", e);

@@ -1,21 +1,15 @@
 use crate::app::{App, Focus};
 use ratatui::prelude::*;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
+use ratatui::widgets::{
+    Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+};
 
 const BYTES_PER_ROW: usize = 16;
-
-pub enum HexCursor {
-    Hex,
-    Ascii,
-}
 
 pub struct HexdumpState {
     pub scroll: usize,
     pub cursor_offset: usize,
-    pub cursor_mode: HexCursor,
-    pub goto_input: String,
-    pub goto_mode: bool,
 }
 
 impl HexdumpState {
@@ -23,9 +17,6 @@ impl HexdumpState {
         HexdumpState {
             scroll: 0,
             cursor_offset: 0,
-            cursor_mode: HexCursor::Hex,
-            goto_input: String::new(),
-            goto_mode: false,
         }
     }
 }
@@ -56,10 +47,8 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         }
     };
 
-    let data = data; // make immutable
-
     if data.is_empty() {
-        let p = Paragraph::new(format!("No data to display"))
+        let p = Paragraph::new("No data to display")
             .block(Block::default().borders(Borders::ALL).title("Hexdump"));
         f.render_widget(p, area);
         return;
@@ -84,7 +73,9 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         app.hexdump.scroll = max_scroll;
     }
 
-    let cursor_style = Style::default().fg(Color::Black).bg(Color::Rgb(200, 200, 100));
+    let cursor_style = Style::default()
+        .fg(Color::Black)
+        .bg(Color::Rgb(200, 200, 100));
 
     let mut lines: Vec<Line> = Vec::new();
 
@@ -154,10 +145,7 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
 
     let title = format!(
         "{} - 0x{:x}-0x{:x} [Hexdump] 0x{:x}",
-        section_name,
-        base_addr,
-        sector_end,
-        cursor_addr
+        section_name, base_addr, sector_end, cursor_addr
     );
 
     let border_style = if app.focus == Focus::Detail {
@@ -166,15 +154,18 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         Style::default()
     };
 
-    let p = Paragraph::new(lines)
-        .block(Block::default().borders(Borders::ALL).title(title).border_style(border_style));
+    let p = Paragraph::new(lines).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(title)
+            .border_style(border_style),
+    );
 
     f.render_widget(p, area);
 
     let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
         .begin_symbol(Some("↑"))
         .end_symbol(Some("↓"));
-    let mut scrollbar_state = ScrollbarState::new(max_scroll)
-        .position(app.hexdump.scroll);
+    let mut scrollbar_state = ScrollbarState::new(max_scroll).position(app.hexdump.scroll);
     f.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
 }
