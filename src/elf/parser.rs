@@ -80,6 +80,16 @@ pub struct ElfData {
     pub dynamic: Vec<DynamicEntry>,
 }
 
+impl ElfData {
+    pub fn bitness(&self) -> u32 {
+        if self.class == 1 {
+            32
+        } else {
+            64
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct DynamicEntry {
     pub tag: String,
@@ -237,7 +247,7 @@ pub fn parse_elf<P: AsRef<Path>>(path: P) -> Result<ElfData, Box<dyn std::error:
 
     // Parse .dynamic entries using goblin
     let dynamic = match &sections.iter().find(|s| s.name == ".dynamic") {
-        Some(s) if !s.data.is_empty() => parse_dynamic_from_data(&s.data),
+        Some(s) if !s.data.is_empty() => parse_dynamic_from_data(&s.data, header_fields.0),
         _ => Vec::new(),
     };
 
@@ -393,27 +403,32 @@ fn sym_vis_to_str(vis: u8) -> String {
     }
 }
 
-fn parse_dynamic_from_data(data: &[u8]) -> Vec<DynamicEntry> {
-    let mut entries = Vec::new();
+/// `.dynamic` entries are 8 bytes as `Elf32_Dyn` (u32 tag + u32 value) and
+/// 16 bytes as `Elf64_Dyn` (u64 + u64), so the stride follows the ELF class.
+fn parse_dynamic_from_data(data: &[u8], class: u8) -> Vec<DynamicEntry> {
+    let word_size = if class == 1 { 4 } else { 8 };
 
-    for chunk in data.chunks(16) {
-        if chunk.len() < 16 {
-            break;
-        }
-        let tag = u64::from_le_bytes(chunk[0..8].try_into().unwrap());
-        let value = u64::from_le_bytes(chunk[8..16].try_into().unwrap());
-
-        if tag == 0 {
-            break;
-        }
-
-        entries.push(DynamicEntry {
+    data.chunks_exact(word_size * 2)
+        .map(|chunk| {
+            (
+                read_word(chunk, 0, word_size),
+                read_word(chunk, word_size, word_size),
+            )
+        })
+        .take_while(|&(tag, _)| tag != 0)
+        .map(|(tag, value)| DynamicEntry {
             tag: dynamic_tag_to_str(tag),
             value: format!("0x{:x}", value),
-        });
-    }
+        })
+        .collect()
+}
 
-    entries
+fn read_word(bytes: &[u8], offset: usize, word_size: usize) -> u64 {
+    if word_size == 4 {
+        u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap()) as u64
+    } else {
+        u64::from_le_bytes(bytes[offset..offset + 8].try_into().unwrap())
+    }
 }
 
 fn dynamic_tag_to_str(tag: u64) -> String {
@@ -486,35 +501,25 @@ mod tests {
 
     #[test]
     fn test_parse_elf_overflowing_section_offset_does_not_panic() {
-        let mut bytes = fs::read("/bin/ls").expect("Failed to read /bin/ls");
-        assert_eq!(bytes[4], 2, "/bin/ls should be ELF64");
-
-        let shoff = u64::from_le_bytes(bytes[0x28..0x30].try_into().unwrap()) as usize;
-        let shentsize = u16::from_le_bytes(bytes[0x3A..0x3C].try_into().unwrap()) as usize;
-        let shnum = u16::from_le_bytes(bytes[0x3C..0x3E].try_into().unwrap()) as usize;
-        assert!(
-            shnum > 1,
-            "/bin/ls should have more than one section header"
-        );
-
-        let sh = shoff + shentsize;
-        let sh_type = u32::from_le_bytes(bytes[sh + 4..sh + 8].try_into().unwrap());
-        assert_ne!(
-            sh_type,
-            goblin::elf::section_header::SHT_NOBITS,
-            "section 1 must carry data for this test to exercise the slice"
-        );
-        bytes[sh + 24..sh + 32].copy_from_slice(&0xFFFF_FFFF_FFFF_FFF0u64.to_le_bytes());
-        bytes[sh + 32..sh + 40].copy_from_slice(&0x20u64.to_le_bytes());
-
-        let path =
-            std::env::temp_dir().join(format!("elf-insight-vest8-{}.elf", std::process::id()));
-        fs::write(&path, &bytes).expect("Failed to write mutated ELF");
+        let path = super::super::fixtures::overflow_section_fixture();
         let data = parse_elf(&path);
         let _ = fs::remove_file(&path);
 
         let data = data.expect("goblin should accept an out-of-range section offset");
         assert!(data.sections[1].data.is_empty());
+    }
+
+    #[test]
+    fn test_parse_elf32_dynamic_entries_use_elf32_stride() {
+        let path = super::super::fixtures::elf32_fixture();
+        let data = parse_elf(&path);
+        let _ = fs::remove_file(&path);
+
+        let data = data.expect("synthetic ELF32 should parse");
+        assert_eq!(data.class, 1, "fixture should be ELF32");
+        assert_eq!(data.dynamic.len(), 1, "DT_NULL should terminate the list");
+        assert_eq!(data.dynamic[0].tag, "STRTAB");
+        assert_eq!(data.dynamic[0].value, "0x1234");
     }
 
     #[test]

@@ -111,7 +111,7 @@ pub fn build_regions(data: &crate::elf::parser::ElfData) -> Vec<LayoutRegion> {
                 }),
             });
         }
-        cursor = region.offset + region.size;
+        cursor = region.offset.saturating_add(region.size);
         with_gaps.push(region);
     }
     // Trailing gap
@@ -265,4 +265,23 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         .end_symbol(Some("↓"));
     let mut scrollbar_state = ScrollbarState::new(max_scroll).position(app.layout_map.scroll);
     f.render_stateful_widget(scrollbar, inner, &mut scrollbar_state);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_regions_with_overflowing_section_does_not_panic() {
+        let path = crate::elf::fixtures::overflow_section_fixture();
+        let data = crate::elf::parser::parse_elf(&path);
+        let _ = std::fs::remove_file(&path);
+        let data = data.expect("goblin should accept an out-of-range section offset");
+
+        let regions = build_regions(&data);
+        assert!(
+            regions.iter().any(|r| r.offset == 0xFFFF_FFFF_FFFF_FFF0),
+            "the out-of-range section should still be listed"
+        );
+    }
 }
