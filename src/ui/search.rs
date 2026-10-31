@@ -328,24 +328,89 @@ pub fn build_overview_lines(app: &App) -> Vec<String> {
 }
 
 pub fn highlight_line(line: &str, query: &str, highlight_style: Style) -> Line<'static> {
-    if query.is_empty() {
+    let lower_query: Vec<char> = query.to_lowercase().chars().collect();
+    if lower_query.is_empty() {
         return Line::from(line.to_string());
     }
-    let lower_line = line.to_lowercase();
-    let lower_query = query.to_lowercase();
+    let chars: Vec<(usize, char)> = line.char_indices().collect();
     let mut spans: Vec<Span<'static>> = Vec::new();
     let mut last = 0;
-    while let Some(pos) = lower_line[last..].find(&lower_query) {
-        let start = last + pos;
-        let end = start + query.len();
-        if start > last {
-            spans.push(Span::raw(line[last..start].to_string()));
+    let mut i = 0;
+    while i < chars.len() {
+        match lowercase_match_end(&chars, i, &lower_query) {
+            Some(end) => {
+                let start = chars[i].0;
+                let end_byte = chars.get(end).map_or(line.len(), |(b, _)| *b);
+                if start > last {
+                    spans.push(Span::raw(line[last..start].to_string()));
+                }
+                spans.push(Span::styled(
+                    line[start..end_byte].to_string(),
+                    highlight_style,
+                ));
+                last = end_byte;
+                i = end;
+            }
+            None => i += 1,
         }
-        spans.push(Span::styled(line[start..end].to_string(), highlight_style));
-        last = end;
     }
     if last < line.len() {
         spans.push(Span::raw(line[last..].to_string()));
     }
     Line::from(spans)
+}
+
+/// Returns the index just past the characters at `chars[start..]` when their
+/// case-folded form starts with `query`. Matching starts and stops on char
+/// boundaries, so the result always maps back onto the original string.
+fn lowercase_match_end(chars: &[(usize, char)], start: usize, query: &[char]) -> Option<usize> {
+    let mut matched = 0;
+    let mut i = start;
+    while matched < query.len() {
+        let (_, c) = chars.get(i)?;
+        for lower in c.to_lowercase() {
+            if lower != query[matched] {
+                return None;
+            }
+            matched += 1;
+            if matched == query.len() {
+                break;
+            }
+        }
+        i += 1;
+    }
+    Some(i)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn span_texts(line: &Line<'_>) -> Vec<String> {
+        line.spans.iter().map(|s| s.content.to_string()).collect()
+    }
+
+    #[test]
+    fn test_highlight_line_case_insensitive() {
+        let line = highlight_line("Hello World", "world", Style::default());
+        assert_eq!(span_texts(&line), vec!["Hello ", "World"]);
+    }
+
+    #[test]
+    fn test_highlight_line_no_match_returns_original() {
+        let line = highlight_line("Hello World", "xyz", Style::default());
+        assert_eq!(span_texts(&line), vec!["Hello World"]);
+    }
+
+    #[test]
+    fn test_highlight_line_expanding_lowercase_before_match_does_not_panic() {
+        let line = highlight_line("ẞabc", "abc", Style::default());
+        assert_eq!(span_texts(&line), vec!["ẞ", "abc"]);
+    }
+
+    #[test]
+    fn test_highlight_line_expanding_lowercase_after_match_does_not_panic() {
+        let line = highlight_line("xİy", "y", Style::default());
+        assert_eq!(span_texts(&line), vec!["xİ", "y"]);
+    }
 }
