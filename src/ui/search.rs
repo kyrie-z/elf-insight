@@ -328,58 +328,98 @@ pub fn build_overview_lines(app: &App) -> Vec<String> {
 }
 
 pub fn highlight_line(line: &str, query: &str, highlight_style: Style) -> Line<'static> {
-    let lower_query: Vec<char> = query.to_lowercase().chars().collect();
+    let lower_line = line.to_lowercase();
+    let lower_query = query.to_lowercase();
     if lower_query.is_empty() {
         return Line::from(line.to_string());
     }
-    let chars: Vec<(usize, char)> = line.char_indices().collect();
+
+    let mut map = LowerMap::new(line);
     let mut spans: Vec<Span<'static>> = Vec::new();
     let mut last = 0;
-    let mut i = 0;
-    while i < chars.len() {
-        match lowercase_match_end(&chars, i, &lower_query) {
-            Some(end) => {
-                let start = chars[i].0;
-                let end_byte = chars.get(end).map_or(line.len(), |(b, _)| *b);
-                if start > last {
-                    spans.push(Span::raw(line[last..start].to_string()));
-                }
-                spans.push(Span::styled(
-                    line[start..end_byte].to_string(),
-                    highlight_style,
-                ));
-                last = end_byte;
-                i = end;
+    let mut pos = 0;
+    while let Some(found) = lower_line[pos..].find(&lower_query) {
+        let start_lower = pos + found;
+        let end_lower = start_lower + lower_query.len();
+        pos = end_lower;
+        // Align the lowercased match back onto the original string. A match
+        // endpoint inside the lowercase expansion of a char widens to that
+        // whole char, so every span stays on a char boundary.
+        let (Some((start, _)), Some((_, end))) =
+            (map.char_at(start_lower), map.char_at(end_lower - 1))
+        else {
+            break;
+        };
+        let Some(text) = line.get(start..end) else {
+            continue;
+        };
+        if start > last {
+            if let Some(gap) = line.get(last..start) {
+                spans.push(Span::raw(gap.to_string()));
             }
-            None => i += 1,
         }
+        spans.push(Span::styled(text.to_string(), highlight_style));
+        last = end;
     }
-    if last < line.len() {
-        spans.push(Span::raw(line[last..].to_string()));
+    if let Some(rest) = line.get(last..) {
+        if !rest.is_empty() {
+            spans.push(Span::raw(rest.to_string()));
+        }
     }
     Line::from(spans)
 }
 
-/// Returns the index just past the characters at `chars[start..]` when their
-/// case-folded form starts with `query`. Matching starts and stops on char
-/// boundaries, so the result always maps back onto the original string.
-fn lowercase_match_end(chars: &[(usize, char)], start: usize, query: &[char]) -> Option<usize> {
-    let mut matched = 0;
-    let mut i = start;
-    while matched < query.len() {
-        let (_, c) = chars.get(i)?;
-        for lower in c.to_lowercase() {
-            if lower != query[matched] {
-                return None;
-            }
-            matched += 1;
-            if matched == query.len() {
-                break;
-            }
-        }
-        i += 1;
+/// Walks `line` in step with `line.to_lowercase()` and maps byte offsets of the
+/// lowercased string back to the original char that produced them. Offsets must
+/// be requested in non-decreasing order.
+struct LowerMap<'a> {
+    chars: std::str::CharIndices<'a>,
+    orig_start: usize,
+    orig_end: usize,
+    lower_start: usize,
+    lower_end: usize,
+    exhausted: bool,
+}
+
+impl<'a> LowerMap<'a> {
+    fn new(line: &'a str) -> Self {
+        let mut map = LowerMap {
+            chars: line.char_indices(),
+            orig_start: 0,
+            orig_end: 0,
+            lower_start: 0,
+            lower_end: 0,
+            exhausted: false,
+        };
+        map.advance();
+        map
     }
-    Some(i)
+
+    fn advance(&mut self) {
+        match self.chars.next() {
+            Some((start, c)) => {
+                self.orig_start = start;
+                self.orig_end = start + c.len_utf8();
+                self.lower_start = self.lower_end;
+                // `str::to_lowercase` differs from per-char folding only in the
+                // word-final sigma rule, which preserves the byte length.
+                self.lower_end += c.to_lowercase().map(char::len_utf8).sum::<usize>();
+            }
+            None => self.exhausted = true,
+        }
+    }
+
+    /// Original byte range of the char whose lowercase form contains
+    /// `lower_offset`.
+    fn char_at(&mut self, lower_offset: usize) -> Option<(usize, usize)> {
+        while !self.exhausted && self.lower_end <= lower_offset {
+            self.advance();
+        }
+        if self.exhausted || lower_offset < self.lower_start {
+            return None;
+        }
+        Some((self.orig_start, self.orig_end))
+    }
 }
 
 #[cfg(test)]
@@ -412,5 +452,23 @@ mod tests {
     fn test_highlight_line_expanding_lowercase_after_match_does_not_panic() {
         let line = highlight_line("xİy", "y", Style::default());
         assert_eq!(span_texts(&line), vec!["xİ", "y"]);
+    }
+
+    #[test]
+    fn test_highlight_line_word_final_sigma_matches_search_semantics() {
+        let style = Style::default().fg(Color::Yellow);
+        for query in ["ΟΔΟΣ", "οδος"] {
+            let line = highlight_line("ΟΔΟΣ", query, style);
+            assert_eq!(span_texts(&line), vec!["ΟΔΟΣ"]);
+            assert_eq!(line.spans[0].style, style);
+        }
+    }
+
+    #[test]
+    fn test_highlight_line_sigma_requires_the_final_form() {
+        // `str::to_lowercase` folds the final Σ to ς, so a plain σ query does
+        // not match - the same verdict the search list (`contains`) reaches.
+        let line = highlight_line("ΟΣ", "σ", Style::default());
+        assert_eq!(span_texts(&line), vec!["ΟΣ"]);
     }
 }
