@@ -103,11 +103,12 @@ pub fn parse_elf<P: AsRef<Path>>(path: P) -> Result<ElfData, Box<dyn std::error:
                     Vec::new()
                 } else {
                     let start = sh.sh_offset as usize;
-                    let end = start + sh.sh_size as usize;
-                    if end <= raw_bytes.len() {
-                        raw_bytes[start..end].to_vec()
-                    } else {
-                        Vec::new()
+                    match start
+                        .checked_add(sh.sh_size as usize)
+                        .filter(|&end| end <= raw_bytes.len())
+                    {
+                        Some(end) => raw_bytes[start..end].to_vec(),
+                        None => Vec::new(),
                     }
                 };
                 SectionInfo {
@@ -481,6 +482,39 @@ mod tests {
     fn test_parse_elf_nonexistent_file() {
         let result = parse_elf("/nonexistent/file");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_elf_overflowing_section_offset_does_not_panic() {
+        let mut bytes = fs::read("/bin/ls").expect("Failed to read /bin/ls");
+        assert_eq!(bytes[4], 2, "/bin/ls should be ELF64");
+
+        let shoff = u64::from_le_bytes(bytes[0x28..0x30].try_into().unwrap()) as usize;
+        let shentsize = u16::from_le_bytes(bytes[0x3A..0x3C].try_into().unwrap()) as usize;
+        let shnum = u16::from_le_bytes(bytes[0x3C..0x3E].try_into().unwrap()) as usize;
+        assert!(
+            shnum > 1,
+            "/bin/ls should have more than one section header"
+        );
+
+        let sh = shoff + shentsize;
+        let sh_type = u32::from_le_bytes(bytes[sh + 4..sh + 8].try_into().unwrap());
+        assert_ne!(
+            sh_type,
+            goblin::elf::section_header::SHT_NOBITS,
+            "section 1 must carry data for this test to exercise the slice"
+        );
+        bytes[sh + 24..sh + 32].copy_from_slice(&0xFFFF_FFFF_FFFF_FFF0u64.to_le_bytes());
+        bytes[sh + 32..sh + 40].copy_from_slice(&0x20u64.to_le_bytes());
+
+        let path =
+            std::env::temp_dir().join(format!("elf-insight-vest8-{}.elf", std::process::id()));
+        fs::write(&path, &bytes).expect("Failed to write mutated ELF");
+        let data = parse_elf(&path);
+        let _ = fs::remove_file(&path);
+
+        let data = data.expect("goblin should accept an out-of-range section offset");
+        assert!(data.sections[1].data.is_empty());
     }
 
     #[test]
